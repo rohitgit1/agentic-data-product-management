@@ -78,10 +78,16 @@ fails. It produces:
 | **Practitioner** | Product owner, steward, SME, architect, engineer, privacy officer | **My Work** → **Lifecycle Studio** |
 | **Leadership** | CDO, domain lead, programme director | **Portfolio** |
 
-### The nine tabs
+### The eleven tabs
 
-Marketplace · Request · My Work · Lifecycle Studio · Portfolio · Consumption Patterns · Agents ·
-Academy · Admin.
+Marketplace · Request · My Work · Lifecycle Studio · Portfolio · Consumption Patterns ·
+Agent Run Console · Agents · Academy · Data Model · Admin.
+
+**Data Model** documents the application's own persistence model — every table, column, key,
+relationship and enumeration behind ADPM, with a plain-language note on what each table is for and
+which invariant it carries. Structure is parsed from `prisma/schema.prisma` at request time and the
+entity-relationship diagrams are generated from it, so the page cannot drift from what the
+application actually stores; a test fails if a table is added without a reading note.
 
 ### The twelve stages
 

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { clsx } from 'clsx'
 
 /**
- * Nine tabs in five groups. The groups are the three front doors plus enablement and run —
+ * Eleven tabs in five groups. The groups are the three front doors plus enablement and run —
  * consumer, practitioner and leadership navigation are never blended into one list.
  */
 
@@ -35,6 +35,11 @@ export const NAV_GROUPS: { group: string; items: { href: string; label: string; 
       { href: '/run-console', label: 'Agent Run Console', hint: 'Dispatch agents across the 12 stages, automated or manual' },
       { href: '/agents', label: 'Agents', hint: 'Charters, autonomy, supervision and cost' },
       { href: '/academy', label: 'Academy', hint: 'How data products work here' },
+      {
+        href: '/data-model',
+        label: 'Data Model',
+        hint: 'The tables, relationships and enumerations the application itself runs on',
+      },
     ],
   },
   {
