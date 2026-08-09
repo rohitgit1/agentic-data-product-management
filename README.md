@@ -33,6 +33,11 @@ Needs Node 20.11+ and pnpm 10+.
   which gaps are deployment work and which are missing features.
 - Cloud guides, all building on that one: **[AWS](docs/AWS.md)** · **[Azure](docs/AZURE.md)** ·
   **[GCP](docs/GCP.md)**.
+- **[docs/build-spec/](docs/build-spec/README.md)** — the **build specification**: what to hand an
+  AI engineer and a data engineer who have to build ADPM on a client network and run it on AWS,
+  Azure or GCP. Functional spec, solution architecture, physical data model with DDL, a per-table
+  data loading specification, three cloud reference architectures, the agent runtime, and a build
+  plan with acceptance criteria.
 - **[docs/screenshots/](docs/screenshots/)** — every tab and page captured against the seeded
   database, regenerable with `pnpm screenshots`.
 
