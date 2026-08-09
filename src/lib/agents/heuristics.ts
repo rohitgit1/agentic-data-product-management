@@ -54,6 +54,7 @@ const emptyish = {
   relationships: [],
   glossary: [],
   metrics: [],
+  lineage: [],
 }
 
 function external(art: Record<string, unknown>): Partial<ExternalMetadata> {
@@ -82,6 +83,24 @@ function externalFindings(art: Record<string, unknown>): FindingDraft[] {
           .join('; ') +
         '. That is the catalogue\u2019s opinion, not this product\u2019s certification — it still needs evidence and an approval here.',
       severity: 'LOW',
+    })
+  }
+
+  const lineage = ext.lineage ?? []
+  if (lineage.length) {
+    const upstream = [...new Set(lineage.map((edge) => edge.from))]
+    findings.push({
+      title: `Your catalogue records ${lineage.length} lineage hop(s) across ${upstream.length} upstream object(s)`,
+      detail:
+        lineage
+          .slice(0, 6)
+          .map(
+            (edge) =>
+              `${edge.from} → ${edge.to}${edge.transformation ? ` (${edge.transformation})` : ''}`,
+          )
+          .join('; ') +
+        '. Anything upstream of this product is a dependency you inherit: a schema change there lands here. Check the source inventory names the ones that matter.',
+      severity: 'MEDIUM',
     })
   }
 
@@ -527,13 +546,23 @@ function architecture(art: Record<string, unknown>): AgentOutput {
 
   const entities = model.entities
   const sources = inventory?.sources ?? []
+  const ext = external(art)
+  const lineage = ext.lineage ?? []
+  // Where the catalogue already knows the physical layout, mirror it rather than inventing a
+  // parallel one — a bronze table that exists is better evidence than a name this agent made up.
+  const knownBronze = [...new Set(lineage.filter((e) => e.fromLayer === 'BRONZE').map((e) => e.from))]
+  const knownSilver = [...new Set(lineage.filter((e) => e.toLayer === 'SILVER').map((e) => e.to))]
   // The contract states freshness in minutes, so "sub-daily" is arithmetic rather than a guess.
   const freshnessMinutes = contract?.slas?.freshnessMinutes ?? 0
   const freshness = freshnessMinutes ? `${freshnessMinutes} minute(s)` : ''
   const incremental = freshnessMinutes > 0 && freshnessMinutes < 24 * 60
 
   return {
-    narrative: `Proposed a medallion layout for ${entities.length} entity/entities across ${sources.length || 'the declared'} source(s), sized to the freshness the Stage 5 contract already promises${freshness ? ` (${freshness})` : ''}. Platform is described as a capability — naming a vendor is your call, not the agent's.`,
+    narrative: `Proposed a medallion layout for ${entities.length} entity/entities across ${sources.length || 'the declared'} source(s), sized to the freshness the Stage 5 contract already promises${freshness ? ` (${freshness})` : ''}.${
+      lineage.length
+        ? ` ${lineage.length} lineage hop(s) from your catalogue were used, so ${knownBronze.length + knownSilver.length} layer name(s) are what already exist rather than invented.`
+        : ' No lineage was attached, so every layer name below is invented — attach a catalogue export and dispatch again for names that match reality.'
+    } Platform is described as a capability — naming a vendor is your call, not the agent's.`,
     proposals: [
       {
         fieldPath: 'platformProfile',
@@ -555,11 +584,17 @@ function architecture(art: Record<string, unknown>): AgentOutput {
       {
         fieldPath: 'layers',
         value: {
-          bronze: sources.map((source) => `bronze_${source.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`),
-          silver: entities.map((entity) => `silver_${entity.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`),
+          bronze: knownBronze.length
+            ? knownBronze
+            : sources.map((source) => `bronze_${source.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`),
+          silver: knownSilver.length
+            ? knownSilver
+            : entities.map((entity) => `silver_${entity.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`),
           gold: [`gold_${entities[0]!.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_serving`],
         },
-        rationale: 'One bronze object per declared source, one silver object per modelled entity, one gold serving object. Split gold further if the consumption patterns diverge.',
+        rationale: knownBronze.length || knownSilver.length
+          ? 'Bronze and silver names taken from the lineage your catalogue already records, so this layout matches what exists rather than proposing a parallel one.'
+          : 'One bronze object per declared source, one silver object per modelled entity, one gold serving object. Split gold further if the consumption patterns diverge.',
       },
     ],
     findings: [],

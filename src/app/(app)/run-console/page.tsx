@@ -13,11 +13,11 @@ export const dynamic = 'force-dynamic'
 export default async function RunConsolePage({
   searchParams,
 }: {
-  searchParams: Promise<{ run?: string }>
+  searchParams: Promise<{ run?: string; product?: string }>
 }) {
   const session = await requireSession()
-  const { run: runParam } = await searchParams
-  const view = await loadRunConsole(session.workspaceId, runParam)
+  const { run: runParam, product: productParam } = await searchParams
+  const view = await loadRunConsole(session.workspaceId, runParam, productParam)
   const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: session.workspaceId } })
   const credentials = await credentialStatus()
 
@@ -39,6 +39,8 @@ export default async function RunConsolePage({
       <RunConsole
         products={view.products}
         openRuns={view.openRuns}
+        selectedProductId={view.selectedProductId}
+        attachments={view.attachments}
         initialRun={view.run}
         drafted={view.drafted}
         currentStageApprovers={view.currentStageApprovers}
@@ -51,11 +53,13 @@ export default async function RunConsolePage({
         }))}
         stages={STAGES.map((stage) => ({ number: stage.number, name: stage.name }))}
         route={plannedRoute(1, STAGES.length)}
-        connectors={CONNECTORS.filter((connector) => connector.category !== 'OPEN').map((connector) => ({
+        connectors={CONNECTORS.map((connector) => ({
           key: connector.key,
           name: connector.name,
           category: connector.category,
           supplies: connector.supplies,
+          fileTypes: connector.fileTypes,
+          howToExport: connector.howToExport,
         }))}
         agentsEnabled={workspace.agentsEnabled}
         budgetRemainingUsd={Math.max(0, workspace.agentBudgetUsd - workspace.agentSpendUsd)}

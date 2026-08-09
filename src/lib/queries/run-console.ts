@@ -3,6 +3,7 @@ import { serialiseContent } from '@/lib/artifacts/serialise'
 import { getStage } from '@/lib/lifecycle/stages'
 import { agentName } from '@/lib/agents/registry'
 import { loadRun, plannedAgentsForStage, type RunView } from '@/lib/agents/orchestrator'
+import { getConnector, type ConnectorCategory } from '@/lib/integrations/registry'
 
 /**
  * Everything the run console renders in one read. Kept out of the page so the route stays a
@@ -32,8 +33,22 @@ export interface ConsoleProduct {
   hasOpenRun: boolean
 }
 
+export interface ContextAttachment {
+  id: string
+  connectorKey: string
+  connectorName: string
+  category: ConnectorCategory
+  fileName: string
+  summary: string
+  importedAt: Date
+}
+
 export interface RunConsoleView {
   products: ConsoleProduct[]
+  /** The product the console is showing attachments for — the run's, or the operator's pick. */
+  selectedProductId: string
+  /** External metadata already attached to that product, newest first. */
+  attachments: ContextAttachment[]
   /** Every run still in flight in this workspace, so a second one is never hidden behind the first. */
   openRuns: { id: string; productName: string; state: string }[]
   run: RunView | null
@@ -51,6 +66,7 @@ export const METADATA_IMPORT_STAGES = [3, 4, 6, 7]
 export async function loadRunConsole(
   workspaceId: string,
   selectedRunId?: string,
+  selectedProductId?: string,
 ): Promise<RunConsoleView> {
   const productRows = await prisma.dataProduct.findMany({
     where: { workspaceId, archivedAt: null },
@@ -83,8 +99,21 @@ export async function loadRunConsole(
   const runId = selectedRunId ?? openRunRows[0]?.id
   const run = runId ? await loadRun(runId) : null
 
+  // A run pins the product; otherwise the operator's pick, falling back to the first listed.
+  const productId = run?.productId ?? selectedProductId ?? products[0]?.id ?? ''
+  const attachments = productId ? await attachmentsFor(productId) : []
+
   if (!run) {
-    return { products, openRuns, run: null, drafted: [], currentStageApprovers: [], importStages: [] }
+    return {
+      products,
+      openRuns,
+      selectedProductId: productId,
+      attachments,
+      run: null,
+      drafted: [],
+      currentStageApprovers: [],
+      importStages: [],
+    }
   }
 
   const drafted = await draftedForStage(run.productId, run.currentStage)
@@ -93,6 +122,8 @@ export async function loadRunConsole(
   return {
     products,
     openRuns,
+    selectedProductId: productId,
+    attachments,
     run,
     drafted,
     currentStageApprovers: stage.approverRoles,
@@ -100,6 +131,30 @@ export async function loadRunConsole(
       (number) => number >= run.fromStage && number <= run.toStage,
     ),
   }
+}
+
+/** What a product already has imported, so the console can show it before a run is started. */
+export async function attachmentsFor(productId: string): Promise<ContextAttachment[]> {
+  const rows = await prisma.externalMetadataImport.findMany({
+    where: { productId, archivedAt: null },
+    orderBy: { createdAt: 'desc' },
+  })
+  return rows.flatMap((row) => {
+    const connector = getConnector(row.connectorKey)
+    // An import whose connector has been retired from the registry is not shown as a live source.
+    if (!connector) return []
+    return [
+      {
+        id: row.id,
+        connectorKey: row.connectorKey,
+        connectorName: connector.name,
+        category: connector.category,
+        fileName: row.fileName,
+        summary: row.summary,
+        importedAt: row.createdAt,
+      },
+    ]
+  })
 }
 
 /**

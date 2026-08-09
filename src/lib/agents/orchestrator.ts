@@ -4,6 +4,7 @@ import { PRACTITIONER_ROLES } from '@/lib/domain/roles'
 import { AUDIT_ACTIONS, recordAudit } from '@/lib/audit/log'
 import { STAGES, getStage } from '@/lib/lifecycle/stages'
 import { ensureStageRun, evaluateExitCriteria } from '@/lib/lifecycle/transitions'
+import { categoryOf, type ConnectorCategory } from '@/lib/integrations/registry'
 import { isKnownModel } from './models'
 import { getAgent, agentName } from './registry'
 import { AgentError, invokeAgent } from './runtime'
@@ -61,6 +62,12 @@ export interface StartRunInput {
   userId: string
   mode: RunMode
   modelId: string
+  /**
+   * Which categories of imported metadata the agents may draw on. Empty means artifacts only —
+   * every stage stays completable that way, so this widens what an agent knows and never what it
+   * is allowed to do.
+   */
+  contextSources?: ConnectorCategory[]
   /** Where to start. Defaults to the product's current stage — a run never rewinds history. */
   fromStage?: number
   toStage?: number
@@ -94,6 +101,23 @@ export async function startAgentRun(input: StartRunInput): Promise<string> {
     )
   }
 
+  // A context source the operator asked for but has attached nothing for would silently do
+  // nothing, so it is refused rather than accepted and quietly ignored.
+  const contextSources = [...new Set(input.contextSources ?? [])]
+  if (contextSources.length > 0) {
+    const imports = await prisma.externalMetadataImport.findMany({
+      where: { productId: input.productId, archivedAt: null },
+      select: { connectorKey: true },
+    })
+    const attached = new Set(imports.map((row) => categoryOf(row.connectorKey)).filter(Boolean))
+    const missing = contextSources.filter((category) => !attached.has(category))
+    if (missing.length > 0) {
+      throw new AgentError(
+        `Nothing has been imported for: ${missing.map(categoryLabel).join(' and ')}. Attach an export first, or switch that context source off — an agent cannot read a catalogue you have not given it.`,
+      )
+    }
+  }
+
   const fromStage = clampStage(input.fromStage ?? product.currentStage)
   const toStage = clampStage(input.toStage ?? STAGES.length)
   if (toStage < fromStage) throw new AgentError('The last stage cannot come before the first.')
@@ -106,6 +130,7 @@ export async function startAgentRun(input: StartRunInput): Promise<string> {
         mode: input.mode,
         state: 'RUNNING',
         requestedModel: input.modelId,
+        contextSourcesJson: JSON.stringify(contextSources),
         fromStage,
         toStage,
         currentStage: fromStage,
@@ -134,7 +159,14 @@ export async function startAgentRun(input: StartRunInput): Promise<string> {
       action: AUDIT_ACTIONS.AGENT_RUN_STARTED,
       entityType: 'AgentRun',
       entityId: created.id,
-      data: { mode: input.mode, model: input.modelId, fromStage, toStage, steps: sequence },
+      data: {
+        mode: input.mode,
+        model: input.modelId,
+        contextSources,
+        fromStage,
+        toStage,
+        steps: sequence,
+      },
     })
 
     return created
@@ -160,6 +192,7 @@ export interface RunView {
   state: RunState
   statusDetail: string
   requestedModel: string
+  contextSources: ConnectorCategory[]
   fromStage: number
   toStage: number
   currentStage: number
@@ -176,6 +209,7 @@ export interface RunView {
     sequence: number
     state: RunStepState
     detail: string
+    narrative: string
     agentActionId: string | null
     endedAt: Date | null
   }[]
@@ -200,6 +234,7 @@ export async function loadRun(runId: string): Promise<RunView | null> {
     state: run.state as RunState,
     statusDetail: run.statusDetail,
     requestedModel: run.requestedModel,
+    contextSources: parseContextSources(run.contextSourcesJson),
     fromStage: run.fromStage,
     toStage: run.toStage,
     currentStage: run.currentStage,
@@ -216,6 +251,7 @@ export async function loadRun(runId: string): Promise<RunView | null> {
       sequence: step.sequence,
       state: step.state as RunStepState,
       detail: step.detail,
+      narrative: step.narrative,
       agentActionId: step.agentActionId,
       endedAt: step.endedAt,
     })),
@@ -394,6 +430,7 @@ export async function dispatchStep(runId: string, stepId: string, userId: string
       userId,
       trigger: 'MANUAL',
       modelOverride: run.requestedModel,
+      externalCategories: parseContextSources(run.contextSourcesJson),
     })
     await prisma.agentRunStep.update({
       where: { id: stepId },
@@ -401,6 +438,7 @@ export async function dispatchStep(runId: string, stepId: string, userId: string
         state: 'DRAFTED',
         agentActionId: result.actionId,
         endedAt: new Date(),
+        narrative: result.narrative,
         detail: `${result.proposalCount} proposal(s), ${result.commentCount} comment(s), ${result.findingCount} finding(s) via ${result.model}. ${result.redactedFields.length} field(s) redacted before transmission. Nothing applied.`,
       },
     })
@@ -467,6 +505,26 @@ async function finishRun(
       data: { reason },
     })
   })
+}
+
+/** Stored as JSON on the run; unrecognised entries are dropped rather than trusted. */
+function parseContextSources(json: string): ConnectorCategory[] {
+  try {
+    const parsed = JSON.parse(json) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(
+      (value): value is ConnectorCategory =>
+        value === 'DATA_CATALOGUE' || value === 'DATA_MODELLING' || value === 'OPEN',
+    )
+  } catch {
+    return []
+  }
+}
+
+export function categoryLabel(category: ConnectorCategory): string {
+  if (category === 'DATA_CATALOGUE') return 'data catalogue'
+  if (category === 'DATA_MODELLING') return 'data modelling'
+  return 'canonical import'
 }
 
 function clampStage(value: number): number {

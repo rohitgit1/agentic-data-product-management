@@ -2,10 +2,18 @@
 
 import Link from 'next/link'
 import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react'
-import { cancelRunAction, dispatchStepAction, startRunAction, syncRunAction, type RunResult } from './actions'
+import { useRouter } from 'next/navigation'
+import {
+  attachContextAction,
+  cancelRunAction,
+  dispatchStepAction,
+  startRunAction,
+  syncRunAction,
+  type RunResult,
+} from './actions'
 import { dispositionProposalAction } from '../products/actions'
 import type { RunView } from '@/lib/agents/orchestrator'
-import type { ConsoleProduct, DraftedItem } from '@/lib/queries/run-console'
+import type { ConsoleProduct, ContextAttachment, DraftedItem } from '@/lib/queries/run-console'
 import { roleName } from '@/lib/domain/roles'
 import type { RoleKey } from '@/lib/domain/roles'
 import {
@@ -50,9 +58,25 @@ const STEP_TONE: Record<string, Tone> = {
   FAILED: 'bad',
 }
 
+/** The two context sources an operator can attach, in the order the console offers them. */
+const CONTEXT_SOURCES = [
+  {
+    category: 'DATA_CATALOGUE' as const,
+    label: 'Data catalogue',
+    blurb: 'Sources, glossary, certified metrics and lineage hops from Collibra or Alation.',
+  },
+  {
+    category: 'DATA_MODELLING' as const,
+    label: 'Data modelling',
+    blurb: 'Entities, keys, attributes and relationships from erwin.',
+  },
+]
+
 export interface RunConsoleProps {
   products: ConsoleProduct[]
   openRuns: { id: string; productName: string; state: string }[]
+  selectedProductId: string
+  attachments: ContextAttachment[]
   initialRun: RunView | null
   drafted: DraftedItem[]
   currentStageApprovers: string[]
@@ -60,16 +84,29 @@ export interface RunConsoleProps {
   models: { id: string; name: string; tier: string; bestFor: string }[]
   stages: { number: number; name: string }[]
   route: { stageNumber: number; name: string; agents: string[] }[]
-  connectors: { key: string; name: string; category: string; supplies: string[] }[]
+  connectors: {
+    key: string
+    name: string
+    category: string
+    supplies: string[]
+    fileTypes: string[]
+    howToExport: string
+  }[]
   agentsEnabled: boolean
   budgetRemainingUsd: number
   provider: 'model' | 'local-heuristic'
 }
 
 export function RunConsole(props: RunConsoleProps) {
+  const router = useRouter()
   const [run, setRun] = useState<RunView | null>(props.initialRun)
   const [drafted, setDrafted] = useState<DraftedItem[]>(props.drafted)
-  const [productId, setProductId] = useState(props.initialRun?.productId ?? props.products[0]?.id ?? '')
+  const productId = props.selectedProductId
+  const [contextSources, setContextSources] = useState<string[]>(() =>
+    CONTEXT_SOURCES.filter((source) =>
+      props.attachments.some((attachment) => attachment.category === source.category),
+    ).map((source) => source.category),
+  )
   const [mode, setMode] = useState<'AUTOMATED' | 'MANUAL'>('AUTOMATED')
   const [modelId, setModelId] = useState(props.models[1]?.id ?? props.models[0]?.id ?? '')
   const [pollError, setPollError] = useState<string | undefined>()
@@ -151,7 +188,9 @@ export function RunConsole(props: RunConsoleProps) {
                     name="productId"
                     className={inputClass}
                     value={productId}
-                    onChange={(event) => setProductId(event.target.value)}
+                    // The product drives which attachments are shown, and those are read on the
+                    // server, so choosing one is a navigation rather than local state.
+                    onChange={(event) => router.push(`/run-console?product=${event.target.value}`)}
                     disabled={Boolean(active)}
                   >
                     {props.products.length === 0 ? <option value="">No products yet</option> : null}
@@ -201,6 +240,60 @@ export function RunConsole(props: RunConsoleProps) {
                   ))}
                 </select>
               </Field>
+
+              <div className="md:col-span-4 border-t border-ink-200 pt-4">
+                <p className="mb-2 text-sm font-medium text-ink-800">
+                  Context sources for the agents
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {CONTEXT_SOURCES.map((source) => {
+                    const attached = props.attachments.filter((a) => a.category === source.category)
+                    const checked = contextSources.includes(source.category)
+                    return (
+                      <label
+                        key={source.category}
+                        className={`flex gap-2 rounded-md border px-3 py-2 ${
+                          checked ? 'border-accent-600 bg-accent-50' : 'border-ink-300 bg-white'
+                        } ${active ? 'opacity-60' : 'cursor-pointer'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          name="contextSources"
+                          value={source.category}
+                          checked={checked}
+                          disabled={Boolean(active)}
+                          onChange={(event) =>
+                            setContextSources((current) =>
+                              event.target.checked
+                                ? [...current, source.category]
+                                : current.filter((entry) => entry !== source.category),
+                            )
+                          }
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="block text-sm font-medium text-ink-900">{source.label}</span>
+                          <span className="block text-xs text-ink-600">{source.blurb}</span>
+                          <span
+                            className={`mt-1 block text-xs ${
+                              attached.length ? 'text-emerald-800' : 'text-amber-900'
+                            }`}
+                          >
+                            {attached.length
+                              ? `${attached.length} import(s) attached — ${attached[0]!.summary}`
+                              : 'Nothing attached yet. Import below, or leave this off.'}
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-ink-600">
+                  Attached metadata is <strong>context an agent may read</strong>, never artifact
+                  content. It widens what an agent knows; it changes nothing about what an agent may
+                  do, and every stage stays completable with both switched off.
+                </p>
+              </div>
 
               <div className="md:col-span-4 flex flex-wrap items-center gap-3 border-t border-ink-200 pt-4">
                 <Button disabled={starting || Boolean(active) || !props.agentsEnabled || props.products.length === 0}>
@@ -254,6 +347,15 @@ export function RunConsole(props: RunConsoleProps) {
       </div>
 
       <div className="lg:col-span-2">
+        <ContextSources
+          productId={productId}
+          attachments={props.attachments}
+          connectors={props.connectors}
+          locked={Boolean(active)}
+        />
+      </div>
+
+      <div className="lg:col-span-2">
         <StageRail run={run} route={props.route} stages={props.stages} />
       </div>
 
@@ -276,6 +378,143 @@ export function RunConsole(props: RunConsoleProps) {
         connectors={props.connectors}
         importStages={props.importStages}
       />
+    </div>
+  )
+}
+
+/**
+ * Attaching an export is a second door onto the same import the stage studio offers, put here
+ * because this is where an operator decides what an agent should know before pressing start.
+ */
+function ContextSources({
+  productId,
+  attachments,
+  connectors,
+  locked,
+}: {
+  productId: string
+  attachments: ContextAttachment[]
+  connectors: RunConsoleProps['connectors']
+  locked: boolean
+}) {
+  return (
+    <Card>
+      <CardHeader
+        title="Attach catalogue and model metadata"
+        description="Export from your tool, upload the file. There is no live API call — ADPM runs offline and does not write back to a system of record it does not own."
+      />
+      <CardBody>
+        <div className="grid gap-4 md:grid-cols-2">
+          {CONTEXT_SOURCES.map((source) => (
+            <AttachPanel
+              key={source.category}
+              label={source.label}
+              productId={productId}
+              locked={locked}
+              // The panel's own category first, so the default selection matches the panel and a
+              // modelling CSV is never handed to the JSON parser. The canonical import stays
+              // available underneath for anything that can emit the normalised shape directly.
+              connectors={[
+                ...connectors.filter((connector) => connector.category === source.category),
+                ...connectors.filter((connector) => connector.category === 'OPEN'),
+              ]}
+              attached={attachments.filter((a) => a.category === source.category)}
+            />
+          ))}
+        </div>
+        {locked ? (
+          <p className="mt-3 text-xs text-ink-600">
+            A run is open, so its context is fixed. Cancel it to attach anything further — an agent
+            that read one catalogue halfway through a run and another afterwards would leave a log
+            nobody could reconstruct.
+          </p>
+        ) : null}
+      </CardBody>
+    </Card>
+  )
+}
+
+function AttachPanel({
+  label,
+  productId,
+  connectors,
+  attached,
+  locked,
+}: {
+  label: string
+  productId: string
+  connectors: RunConsoleProps['connectors']
+  attached: ContextAttachment[]
+  locked: boolean
+}) {
+  const [connectorKey, setConnectorKey] = useState(connectors[0]?.key ?? '')
+  const [state, action, pending] = useActionState<RunResult | undefined, FormData>(
+    attachContextAction,
+    undefined,
+  )
+  const selected = connectors.find((connector) => connector.key === connectorKey)
+
+  return (
+    <div className="rounded-md border border-ink-200 p-3">
+      <p className="text-sm font-semibold text-ink-900">{label}</p>
+
+      {attached.length > 0 ? (
+        <ul className="mt-2 space-y-1">
+          {attached.map((attachment) => (
+            <li key={attachment.id} className="text-xs text-ink-700">
+              <Badge tone="good">attached</Badge>{' '}
+              <span className="font-medium">{attachment.connectorName}</span> · {attachment.fileName}{' '}
+              — {attachment.summary}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-ink-600">Nothing attached.</p>
+      )}
+
+      <form action={action} className="mt-3">
+        <input type="hidden" name="productId" value={productId} />
+        <Field label="Tool" htmlFor={`connector-${label}`}>
+          <select
+            id={`connector-${label}`}
+            name="connectorKey"
+            className={inputClass}
+            value={connectorKey}
+            disabled={locked}
+            onChange={(event) => setConnectorKey(event.target.value)}
+          >
+            {connectors.map((connector) => (
+              <option key={connector.key} value={connector.key}>
+                {connector.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {selected ? (
+          <details className="mb-2">
+            <summary className="cursor-pointer text-xs text-accent-700">How to export this</summary>
+            <p className="mt-1 text-xs text-ink-600">{selected.howToExport}</p>
+            <p className="mt-1 text-xs text-ink-600">
+              Supplies: {selected.supplies.join(', ')}.
+            </p>
+          </details>
+        ) : null}
+        <Field label="Export file" htmlFor={`file-${label}`}>
+          <input
+            id={`file-${label}`}
+            name="file"
+            type="file"
+            accept={selected?.fileTypes.join(',')}
+            disabled={locked}
+            className={inputClass}
+          />
+        </Field>
+        <Button variant="secondary" disabled={pending || locked}>
+          {pending ? 'Reading…' : 'Attach'}
+        </Button>
+        {state?.error ? <ErrorText>{state.error}</ErrorText> : null}
+        {state?.ok ? <p className="mt-2 text-xs text-emerald-800">{state.ok}</p> : null}
+      </form>
     </div>
   )
 }
@@ -402,6 +641,9 @@ function ExecutionLog({
                       <DispatchButton runId={run.id} stepId={step.id} onDispatched={onDispatched} />
                     ) : null}
                   </p>
+                  {step.narrative ? (
+                    <p className="mt-1 text-xs text-ink-800">{step.narrative}</p>
+                  ) : null}
                   {step.detail ? <p className="mt-1 text-xs text-ink-600">{step.detail}</p> : null}
                 </li>
               ))}

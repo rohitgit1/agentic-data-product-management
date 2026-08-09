@@ -4,6 +4,7 @@ import {
   externalMetadataSchema,
   type ExternalMetadata,
   type ExternalEntity,
+  type ExternalLineageEdge,
 } from './schema'
 
 /**
@@ -121,7 +122,59 @@ interface CollibraAsset {
   steward?: string
   owner?: string
   attributes?: Record<string, unknown>
-  relations?: { target?: string; name?: string }[]
+  relations?: {
+    target?: string
+    name?: string
+    /** Collibra names the relation type, e.g. "sources / is sourced by", "Data Flow". */
+    type?: string | { name?: string }
+    /** Which end of the relation the target sits on. */
+    direction?: string
+    transformation?: string
+  }[]
+}
+
+interface CollibraExport {
+  results?: CollibraAsset[]
+  /** Some lineage exports ship a separate edge list rather than per-asset relations. */
+  lineage?: {
+    from?: string
+    source?: string
+    to?: string
+    target?: string
+    fromSystem?: string
+    toSystem?: string
+    transformation?: string
+    description?: string
+  }[]
+}
+
+/**
+ * Whether a Collibra relation describes data movement rather than, say, stewardship or a glossary
+ * mapping. Matched on the documented relation-type vocabulary; anything unrecognised is ignored
+ * rather than guessed at, because a wrong lineage edge is worse than a missing one — it tells an
+ * architect a dependency exists that does not.
+ */
+function isLineageRelation(type: string): boolean {
+  const normalised = type.toLowerCase()
+  return (
+    normalised.includes('lineage') ||
+    normalised.includes('data flow') ||
+    normalised.includes('dataflow') ||
+    normalised.includes('sources') ||
+    normalised.includes('sourced by') ||
+    normalised.includes('source for') ||
+    normalised.includes('targets') ||
+    normalised.includes('feeds')
+  )
+}
+
+/** Bronze/Silver/Gold if the object name says so. Used to keep physical names out of grounding. */
+function layerFromName(name: string): 'BRONZE' | 'SILVER' | 'GOLD' | 'UNKNOWN' {
+  const normalised = name.toLowerCase()
+  if (/(^|[^a-z])bronze([^a-z]|$)|(^|_)raw([^a-z]|$)|(^|_)stg([^a-z]|$)/.test(normalised)) return 'BRONZE'
+  if (/(^|[^a-z])silver([^a-z]|$)|(^|_)cleansed([^a-z]|$)/.test(normalised)) return 'SILVER'
+  if (/(^|[^a-z])gold([^a-z]|$)|(^|_)mart([^a-z]|$)|(^|_)serving([^a-z]|$)/.test(normalised)) return 'GOLD'
+  return 'UNKNOWN'
 }
 
 function nameOf(value: string | { name?: string } | undefined): string {
@@ -132,14 +185,40 @@ function nameOf(value: string | { name?: string } | undefined): string {
 /** Collibra — asset export JSON (an array of assets, or `{ results: [...] }`). */
 export function parseCollibraJson(text: string): ExternalMetadata {
   const raw = readJson(text)
-  const assets: CollibraAsset[] = Array.isArray(raw)
-    ? (raw as CollibraAsset[])
-    : (((raw as { results?: CollibraAsset[] })?.results ?? []) as CollibraAsset[])
-  if (assets.length === 0) {
+  const payload: CollibraExport = Array.isArray(raw) ? { results: raw as CollibraAsset[] } : (raw as CollibraExport)
+  const assets: CollibraAsset[] = payload.results ?? []
+  if (assets.length === 0 && (payload.lineage ?? []).length === 0) {
     throw new ImportError('No assets found.', ['Expected a JSON array of assets, or an object with a "results" array.'])
   }
 
   const metadata = emptyExternalMetadata()
+
+  // An export may describe the same hop twice — once as a per-asset relation and once in a
+  // top-level edge list. Both are read, but a hop is recorded once: a duplicated edge inflates
+  // the dependency count an architect is reading and says nothing new.
+  const seenEdges = new Set<string>()
+  const addEdge = (edge: ExternalLineageEdge) => {
+    const key = `${edge.from}->${edge.to}`
+    if (seenEdges.has(key)) return
+    seenEdges.add(key)
+    metadata.lineage.push(edge)
+  }
+
+  // A standalone edge list, when the export ships one.
+  for (const edge of payload.lineage ?? []) {
+    const from = (edge.from ?? edge.source ?? '').trim()
+    const to = (edge.to ?? edge.target ?? '').trim()
+    if (!from || !to) continue
+    addEdge({
+      from,
+      to,
+      fromSystem: edge.fromSystem ?? '',
+      toSystem: edge.toSystem ?? '',
+      transformation: edge.transformation ?? edge.description ?? '',
+      fromLayer: layerFromName(from),
+      toLayer: layerFromName(to),
+    })
+  }
   for (const asset of assets) {
     const name = (asset.displayName || asset.name || '').trim()
     if (!name) continue
@@ -170,7 +249,27 @@ export function parseCollibraJson(text: string): ExternalMetadata {
         description: asset.description ?? '',
         owner: steward,
         externalCertification: status,
-        layer: 'UNKNOWN',
+        layer: layerFromName(name),
+      })
+    }
+
+    // Lineage carried on the asset itself. `direction` says which way the hop runs; Collibra's
+    // own wording is kept for the transformation so nothing is invented on the way through.
+    for (const relation of asset.relations ?? []) {
+      const target = (relation.target ?? '').trim()
+      const type = nameOf(relation.type) || relation.name || ''
+      if (!target || !isLineageRelation(type)) continue
+      const inbound = /source|upstream|input|sourced by/i.test(relation.direction ?? type)
+      const from = inbound ? target : name
+      const to = inbound ? name : target
+      addEdge({
+        from,
+        to,
+        fromSystem: '',
+        toSystem: '',
+        transformation: relation.transformation ?? type,
+        fromLayer: layerFromName(from),
+        toLayer: layerFromName(to),
       })
     }
   }
@@ -294,5 +393,6 @@ export function summariseImport(metadata: ExternalMetadata): string {
   if (metadata.relationships.length) parts.push(`${metadata.relationships.length} relationship(s)`)
   if (metadata.glossary.length) parts.push(`${metadata.glossary.length} glossary term(s)`)
   if (metadata.metrics.length) parts.push(`${metadata.metrics.length} metric(s)`)
+  if (metadata.lineage.length) parts.push(`${metadata.lineage.length} lineage hop(s)`)
   return parts.length ? parts.join(', ') : 'nothing recognised'
 }

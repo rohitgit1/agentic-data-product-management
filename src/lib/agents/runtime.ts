@@ -15,6 +15,7 @@ import {
   scopeExternalMetadata,
   type ExternalMetadata,
 } from '@/lib/integrations/schema'
+import { categoryOf, type ConnectorCategory } from '@/lib/integrations/registry'
 import { getAgent, type AgentDefinition } from './registry'
 import { DEFAULT_MODEL_BY_LEVEL, isKnownModel } from './models'
 import { redactForAgent } from './redaction'
@@ -58,6 +59,13 @@ export interface InvokeAgentInput {
   trigger: AgentTrigger
   /** Set when one agent invoked another; the orchestration record still names the human above. */
   orchestrationParentId?: string
+  /**
+   * Which categories of imported metadata this dispatch may draw on — the run console's
+   * "context sources" choice, carried down to the boundary that actually builds the context.
+   * Omitted means every import the product has, which is what the stage studio wants; an empty
+   * array means none at all, which is how a run with both toggles off stays agent-only.
+   */
+  externalCategories?: ConnectorCategory[]
   /**
    * The model a run console operator chose for this dispatch, overriding the workspace assignment
    * for the agent's autonomy level. It changes what the agent is good at, never what it may do —
@@ -177,7 +185,7 @@ export async function invokeAgent(input: InvokeAgentInput): Promise<InvokeAgentR
   // a catalogue export is exactly the kind of place a stray PII sample value hides.
   const externalContext = agent.externalScope?.length
     ? scopeExternalMetadata(
-        await loadExternalMetadata(input.productId),
+        await loadExternalMetadata(input.productId, input.externalCategories),
         agent.externalScope,
       )
     : {}
@@ -229,6 +237,7 @@ export async function invokeAgent(input: InvokeAgentInput): Promise<InvokeAgentR
         scopeJson: JSON.stringify({
           artifacts: agent.readScope,
           external: agent.externalScope ?? [],
+          externalCategories: input.externalCategories ?? 'ALL',
         }),
         inputHash,
         model: result.model,
@@ -333,13 +342,23 @@ export async function invokeAgent(input: InvokeAgentInput): Promise<InvokeAgentR
  * The merged, most-recent-wins view of every external import for a product. Newest first so a
  * re-import of the same catalogue supersedes the old one rather than duplicating it.
  */
-export async function loadExternalMetadata(productId: string): Promise<ExternalMetadata> {
+export async function loadExternalMetadata(
+  productId: string,
+  categories?: ConnectorCategory[],
+): Promise<ExternalMetadata> {
   const rows = await prisma.externalMetadataImport.findMany({
     where: { productId, archivedAt: null },
     orderBy: { createdAt: 'desc' },
   })
   const parsed: ExternalMetadata[] = []
   for (const row of rows) {
+    // A run that did not ask for catalogue context must not receive it, whatever is on disk.
+    // Filtering here rather than at the caller means the scheduled runner and the studio go
+    // through the same gate, and an unrecognised connector key is excluded rather than assumed.
+    if (categories) {
+      const category = categoryOf(row.connectorKey)
+      if (!category || !categories.includes(category)) continue
+    }
     const result = externalMetadataSchema.safeParse(JSON.parse(row.payloadJson))
     // A stored import that no longer validates is skipped rather than reaching an agent.
     if (result.success) parsed.push(result.data)

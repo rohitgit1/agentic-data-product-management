@@ -725,6 +725,10 @@ model AgentRun {
   /// The model the operator chose for this run. Recorded even when no API key is configured and
   /// the local heuristic runs instead, so the log never implies a model ran that did not.
   requestedModel String    @default("")
+  /// Which categories of imported metadata the operator attached to this run, as a JSON array of
+  /// connector categories. Recorded so the log shows what an agent was given, not merely what the
+  /// product happened to have on disk. An empty array means the agents ran on artifacts alone.
+  contextSourcesJson String @default("[]")
   fromStage      Int       @default(1)
   toStage        Int       @default(12)
   currentStage   Int       @default(1)
@@ -757,6 +761,10 @@ model AgentRunStep {
   /// The AgentAction this dispatch produced. Null until it has run.
   agentActionId String?
   detail        String    @default("")
+  /// What the agent said it did, in its own words. Surfaced in the execution log so an operator
+  /// can see whether the context they attached was actually used, rather than inferring it from
+  /// a proposal count.
+  narrative     String    @default("")
   startedAt     DateTime?
   endedAt       DateTime?
   createdAt     DateTime  @default(now())

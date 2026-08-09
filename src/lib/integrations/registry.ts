@@ -24,6 +24,8 @@ import type { ExternalContextKind } from './schema'
  * Any tool that can emit the canonical shape needs no adapter at all.
  */
 
+export type ConnectorCategory = ConnectorDefinition['category']
+
 export interface ConnectorDefinition {
   key: string
   name: string
@@ -46,7 +48,15 @@ export const CONNECTORS: ConnectorDefinition[] = [
     name: 'Canonical import (any tool)',
     vendor: 'ADPM',
     category: 'OPEN',
-    supplies: ['sources', 'columnProfiles', 'entities', 'relationships', 'glossary', 'metrics'],
+    supplies: [
+      'sources',
+      'columnProfiles',
+      'entities',
+      'relationships',
+      'glossary',
+      'metrics',
+      'lineage',
+    ],
     fileTypes: ['.json'],
     howToExport:
       'Emit JSON matching src/lib/integrations/schema.ts. Every field is optional except the names. This is the format the per-tool adapters convert into, so anything that can produce it needs no adapter.',
@@ -74,11 +84,11 @@ export const CONNECTORS: ConnectorDefinition[] = [
     name: 'Collibra Data Intelligence Platform',
     vendor: 'Collibra',
     category: 'DATA_CATALOGUE',
-    supplies: ['sources', 'glossary', 'metrics'],
+    supplies: ['sources', 'glossary', 'metrics', 'lineage'],
     fileTypes: ['.json'],
     howToExport:
-      'Export assets from Collibra as JSON, including asset name, type, description, the responsible steward and the asset status. Business Terms become glossary entries, Tables and Systems become sources, Metrics and KPIs become metrics.',
-    note: 'Mapped from the documented asset export shape (name, type, displayName, attributes, relations). Unverified against a live Collibra instance.',
+      'Export assets from Collibra as JSON, including asset name, type, description, the responsible steward and the asset status. Business Terms become glossary entries, Tables and Systems become sources, Metrics and KPIs become metrics. For lineage, include each asset\'s relations (with the relation type and direction), or ship a top-level "lineage" array of {from, to, transformation} edges — either shape is read.',
+    note: 'Mapped from the documented asset export shape (name, type, displayName, attributes, relations). Unverified against a live Collibra instance. Lineage relations are matched on the documented relation-type vocabulary — anything unrecognised is skipped rather than guessed at, because a wrong edge tells an architect a dependency exists that does not.',
   },
   {
     key: 'alation-json',
@@ -98,3 +108,13 @@ export function getConnector(key: string): ConnectorDefinition | undefined {
 }
 
 export const CONNECTOR_KEYS = CONNECTORS.map((c) => c.key)
+
+/** Connectors in one category, for the run console's per-category attachment panels. */
+export function connectorsInCategory(category: ConnectorCategory): ConnectorDefinition[] {
+  return CONNECTORS.filter((connector) => connector.category === category)
+}
+
+/** The category a connector key belongs to, used to honour a run's declared context sources. */
+export function categoryOf(connectorKey: string): ConnectorCategory | undefined {
+  return getConnector(connectorKey)?.category
+}

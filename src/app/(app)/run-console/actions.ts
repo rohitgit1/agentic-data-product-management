@@ -13,6 +13,8 @@ import {
   type RunView,
 } from '@/lib/agents/orchestrator'
 import { draftedForStage, type DraftedItem } from '@/lib/queries/run-console'
+import { importExternalMetadataAction } from '../products/actions'
+import { getConnector } from '@/lib/integrations/registry'
 
 export interface RunResult {
   ok?: string
@@ -32,6 +34,7 @@ const startSchema = z.object({
   productId: z.string().min(1, 'Choose a data product.'),
   mode: z.enum(['AUTOMATED', 'MANUAL']),
   modelId: z.string().min(1, 'Choose a model.'),
+  contextSources: z.array(z.enum(['DATA_CATALOGUE', 'DATA_MODELLING', 'OPEN'])).default([]),
 })
 
 export async function startRunAction(_prev: RunResult | undefined, formData: FormData): Promise<RunResult> {
@@ -40,6 +43,7 @@ export async function startRunAction(_prev: RunResult | undefined, formData: For
     productId: formData.get('productId'),
     mode: formData.get('mode'),
     modelId: formData.get('modelId'),
+    contextSources: formData.getAll('contextSources').map(String),
   })
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Check the run settings.' }
 
@@ -50,6 +54,7 @@ export async function startRunAction(_prev: RunResult | undefined, formData: For
       userId: session.userId,
       mode: parsed.data.mode,
       modelId: parsed.data.modelId,
+      contextSources: parsed.data.contextSources,
     })
     // The first sync is what actually dispatches stage one in AUTOMATED mode.
     const run = await syncAgentRun(runId, session.userId)
@@ -100,6 +105,29 @@ export async function dispatchStepAction(_prev: RunResult | undefined, formData:
     }
   } catch (error) {
     return { error: message(error) }
+  }
+}
+
+/**
+ * Attach a catalogue or modelling export to the product, from the console rather than the stage
+ * screen. It delegates to the same import action the studio uses, so the parsing, validation,
+ * duplicate check and audit trail are identical — this is a second door onto one room, not a
+ * second implementation.
+ */
+export async function attachContextAction(
+  _prev: RunResult | undefined,
+  formData: FormData,
+): Promise<RunResult> {
+  const connector = getConnector(String(formData.get('connectorKey') ?? ''))
+  if (!connector) return { error: 'Choose a tool to import from.' }
+
+  const result = await importExternalMetadataAction(undefined, formData)
+  revalidatePath('/run-console')
+  if (result.error) {
+    return { error: result.details?.length ? `${result.error} ${result.details.join(' ')}` : result.error }
+  }
+  return {
+    ok: `${connector.name} attached. It is context an agent may read — not artifact content, and nothing has been committed.`,
   }
 }
 

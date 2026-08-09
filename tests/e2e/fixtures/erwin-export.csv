@@ -1,0 +1,6 @@
+Entity,Entity Definition,Attribute,Datatype,Null Option,Primary Key,Attribute Definition
+DerEnrolment,A customer enrolment in a DER programme,enrolment_id,VARCHAR(36),NOT NULL,Yes,Surrogate key
+DerEnrolment,A customer enrolment in a DER programme,customer_id,VARCHAR(36),NOT NULL,No,Enrolled customer
+DerEnrolment,A customer enrolment in a DER programme,programme_code,VARCHAR(12),NOT NULL,No,Programme enrolled in
+DerProgramme,A distributed energy resource programme,programme_code,VARCHAR(12),NOT NULL,Yes,Programme identifier
+DerProgramme,A distributed energy resource programme,capacity_mw,DECIMAL(10;2),NULL,No,Contracted capacity

@@ -1,0 +1,14 @@
+{
+  "results": [
+    { "name": "bronze_der_enrolments", "type": "Table", "description": "Raw DER enrolment feed", "status": "Candidate", "steward": "Sam Okafor" },
+    { "name": "silver_der_enrolment", "type": "Table", "description": "Cleansed enrolments", "status": "Approved", "steward": "Priya Raman",
+      "relations": [{ "target": "bronze_der_enrolments", "type": "is sourced by", "direction": "source" }] },
+    { "name": "gold_der_performance_serving", "type": "Table", "description": "Serving view", "status": "Approved",
+      "relations": [{ "target": "silver_der_enrolment", "type": "is sourced by", "direction": "source" }] },
+    { "name": "DER Programme", "type": "Business Term", "description": "A distributed energy resource programme a customer enrols in", "steward": "Amara Nwosu", "status": "Approved" },
+    { "name": "Enrolment Conversion Rate", "type": "KPI", "description": "Share of eligible customers who enrol", "status": "Certified", "attributes": { "expression": "enrolled / eligible" } }
+  ],
+  "lineage": [
+    { "from": "silver_der_enrolment", "to": "gold_der_performance_serving", "transformation": "aggregate to programme grain" }
+  ]
+}

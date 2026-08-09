@@ -80,6 +80,26 @@ export const externalMetricSchema = z.object({
   externalCertification: trimmed.default(''),
 })
 
+/**
+ * One hop of lineage: an upstream object feeding a downstream one. Deliberately flat rather than
+ * a graph type — agents reason about "what feeds this and what does it break" far better from a
+ * list of hops than from a nested structure, and a catalogue export is a list of hops anyway.
+ *
+ * The layer fields matter beyond documentation: lineage is where physical Bronze and Silver names
+ * live, which is exactly what invariant 7 keeps out of a grounding pack. Carrying the layer makes
+ * that filterable rather than a matter of guessing from a table name.
+ */
+export const externalLineageEdgeSchema = z.object({
+  from: trimmed.min(1),
+  to: trimmed.min(1),
+  fromSystem: trimmed.default(''),
+  toSystem: trimmed.default(''),
+  /** What happens between the two, in the catalogue's own words. */
+  transformation: trimmed.default(''),
+  fromLayer: z.enum(['BRONZE', 'SILVER', 'GOLD', 'UNKNOWN']).default('UNKNOWN'),
+  toLayer: z.enum(['BRONZE', 'SILVER', 'GOLD', 'UNKNOWN']).default('UNKNOWN'),
+})
+
 export const externalMetadataSchema = z.object({
   sources: z.array(externalSourceSchema).default([]),
   columnProfiles: z.array(externalColumnProfileSchema).default([]),
@@ -87,11 +107,13 @@ export const externalMetadataSchema = z.object({
   relationships: z.array(externalRelationshipSchema).default([]),
   glossary: z.array(externalGlossaryTermSchema).default([]),
   metrics: z.array(externalMetricSchema).default([]),
+  lineage: z.array(externalLineageEdgeSchema).default([]),
 })
 
 export type ExternalMetadata = z.infer<typeof externalMetadataSchema>
 export type ExternalSource = z.infer<typeof externalSourceSchema>
 export type ExternalEntity = z.infer<typeof externalEntitySchema>
+export type ExternalLineageEdge = z.infer<typeof externalLineageEdgeSchema>
 
 /**
  * The slices an agent can be granted. These are declared per agent in the agent registry and
@@ -104,13 +126,22 @@ export const EXTERNAL_CONTEXT_KINDS = [
   'relationships',
   'glossary',
   'metrics',
+  'lineage',
 ] as const
 
 export type ExternalContextKind = (typeof EXTERNAL_CONTEXT_KINDS)[number]
 
 /** Empty metadata, used when a product has no imports. */
 export function emptyExternalMetadata(): ExternalMetadata {
-  return { sources: [], columnProfiles: [], entities: [], relationships: [], glossary: [], metrics: [] }
+  return {
+    sources: [],
+    columnProfiles: [],
+    entities: [],
+    relationships: [],
+    glossary: [],
+    metrics: [],
+    lineage: [],
+  }
 }
 
 /** Narrow an import to the kinds an agent declared. Anything not declared never reaches it. */
@@ -136,6 +167,7 @@ export function mergeExternalMetadata(imports: ExternalMetadata[]): ExternalMeta
     relationships: new Set<string>(),
     glossary: new Set<string>(),
     metrics: new Set<string>(),
+    lineage: new Set<string>(),
   }
   // Newest first, so the first occurrence of a key is the one that survives.
   for (const item of imports) {
@@ -170,6 +202,12 @@ export function mergeExternalMetadata(imports: ExternalMetadata[]): ExternalMeta
       if (seen.metrics.has(metric.name)) continue
       seen.metrics.add(metric.name)
       merged.metrics.push(metric)
+    }
+    for (const edge of item.lineage) {
+      const key = `${edge.from}->${edge.to}`
+      if (seen.lineage.has(key)) continue
+      seen.lineage.add(key)
+      merged.lineage.push(edge)
     }
   }
   return merged

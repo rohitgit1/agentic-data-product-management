@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/lib/db'
 import { AGENTS, getAgent } from '@/lib/agents/registry'
 import { STAGES, getStage } from '@/lib/lifecycle/stages'
-import { AgentError, dispositionProposal } from '@/lib/agents/runtime'
+import { AgentError, dispositionProposal, loadExternalMetadata } from '@/lib/agents/runtime'
 import {
   cancelAgentRun,
   dispatchStage,
@@ -13,6 +13,11 @@ import {
   syncAgentRun,
   TERMINAL_RUN_STATES,
 } from '@/lib/agents/orchestrator'
+import {
+  emptyExternalMetadata,
+  scopeExternalMetadata,
+} from '@/lib/integrations/schema'
+import { parseCollibraJson } from '@/lib/integrations/parse'
 import { blueprintArtifacts, commit, createFixture, createProduct } from './helpers/fixtures'
 
 afterAll(async () => {
@@ -378,5 +383,181 @@ describe('a scalar proposal can be dispositioned', () => {
     const after = await prisma.agentProposal.findUniqueOrThrow({ where: { id: scalar.id } })
     expect(after.state).toBe('ACCEPTED')
     expect(after.dispositionById).toBe(userId)
+  })
+})
+
+describe('catalogue and modelling context', () => {
+  /**
+   * Lineage is where physical Bronze and Silver names live. Invariant 7 says a grounding artifact
+   * may reference only certified semantic objects, and the surest enforcement is that the agent
+   * writing one never sees them.
+   */
+  it('never grants lineage to the Grounding agent', () => {
+    const grounding = getAgent('grounding')!
+    expect(grounding.externalScope ?? []).toEqual([])
+    const withLineage = AGENTS.filter((a) => (a.externalScope ?? []).includes('lineage'))
+    expect(withLineage.map((a) => a.id)).not.toContain('grounding')
+    expect(withLineage.length).toBeGreaterThan(0)
+  })
+
+  it('grants lineage only to agents whose stage reasons about physical dependencies', () => {
+    const withLineage = AGENTS.filter((a) => (a.externalScope ?? []).includes('lineage')).map((a) => a.id)
+    expect(withLineage.sort()).toEqual(['architecture', 'critic', 'modelling', 'profiling'])
+  })
+
+  it('scopes lineage away from an agent that did not declare it', () => {
+    const metadata = {
+      ...emptyExternalMetadata(),
+      sources: [{ name: 'src', system: '', description: '', owner: '', externalCertification: '', layer: 'UNKNOWN' as const }],
+      lineage: [
+        {
+          from: 'bronze_meter_reads',
+          to: 'silver_meter_reads',
+          fromSystem: '',
+          toSystem: '',
+          transformation: 'dedupe',
+          fromLayer: 'BRONZE' as const,
+          toLayer: 'SILVER' as const,
+        },
+      ],
+    }
+    const forSemantic = scopeExternalMetadata(metadata, getAgent('semantic')!.externalScope!)
+    expect(forSemantic.lineage).toBeUndefined()
+    const forArchitecture = scopeExternalMetadata(metadata, getAgent('architecture')!.externalScope!)
+    expect(forArchitecture.lineage).toHaveLength(1)
+  })
+
+  it('reads lineage from a Collibra export, from relations and from an edge list', () => {
+    const fromRelations = parseCollibraJson(
+      JSON.stringify([
+        {
+          name: 'silver_arrears',
+          type: 'Table',
+          relations: [{ target: 'bronze_billing', type: 'is sourced by', direction: 'source' }],
+        },
+      ]),
+    )
+    expect(fromRelations.lineage).toHaveLength(1)
+    expect(fromRelations.lineage[0]!.from).toBe('bronze_billing')
+    expect(fromRelations.lineage[0]!.to).toBe('silver_arrears')
+    expect(fromRelations.lineage[0]!.fromLayer).toBe('BRONZE')
+    expect(fromRelations.lineage[0]!.toLayer).toBe('SILVER')
+
+    const fromEdges = parseCollibraJson(
+      JSON.stringify({
+        results: [{ name: 'gold_arrears_serving', type: 'Table' }],
+        lineage: [{ from: 'silver_arrears', to: 'gold_arrears_serving', transformation: 'aggregate' }],
+      }),
+    )
+    expect(fromEdges.lineage).toHaveLength(1)
+    expect(fromEdges.lineage[0]!.transformation).toBe('aggregate')
+  })
+
+  it('records a hop once when the export describes it as both a relation and an edge', () => {
+    const parsed = parseCollibraJson(
+      JSON.stringify({
+        results: [
+          {
+            name: 'gold_serving',
+            type: 'Table',
+            relations: [{ target: 'silver_core', type: 'is sourced by', direction: 'source' }],
+          },
+        ],
+        lineage: [{ from: 'silver_core', to: 'gold_serving', transformation: 'aggregate' }],
+      }),
+    )
+    expect(parsed.lineage).toHaveLength(1)
+  })
+
+  it('ignores a relation that does not describe data movement', () => {
+    const parsed = parseCollibraJson(
+      JSON.stringify([
+        { name: 'silver_arrears', type: 'Table', relations: [{ target: 'Priya Raman', type: 'stewarded by' }] },
+      ]),
+    )
+    expect(parsed.lineage).toHaveLength(0)
+  })
+
+  it('refuses to start a run asking for context nobody has attached', async () => {
+    const { fixture, product } = await runnableProduct()
+    await expect(
+      startAgentRun({
+        workspaceId: fixture.workspaceId,
+        productId: product.id,
+        userId: fixture.users.get('DATA_STEWARD')!,
+        mode: 'AUTOMATED',
+        modelId: 'claude-sonnet-5',
+        contextSources: ['DATA_CATALOGUE'],
+      }),
+    ).rejects.toThrow(/Nothing has been imported/i)
+  })
+
+  it('records on the run which context sources the operator attached', async () => {
+    const { fixture, product } = await runnableProduct()
+    const userId = fixture.users.get('DATA_STEWARD')!
+    await prisma.externalMetadataImport.create({
+      data: {
+        workspaceId: fixture.workspaceId,
+        productId: product.id,
+        connectorKey: 'collibra-json',
+        fileName: 'collibra.json',
+        contentHash: `h-${Date.now()}`,
+        payloadJson: JSON.stringify(emptyExternalMetadata()),
+        summary: 'test',
+        importedById: userId,
+      },
+    })
+    const runId = await startAgentRun({
+      workspaceId: fixture.workspaceId,
+      productId: product.id,
+      userId,
+      mode: 'MANUAL',
+      modelId: 'claude-sonnet-5',
+      contextSources: ['DATA_CATALOGUE'],
+    })
+    const run = await loadRun(runId)
+    expect(run!.contextSources).toEqual(['DATA_CATALOGUE'])
+  })
+
+  it('keeps catalogue metadata out of a run that did not ask for it', async () => {
+    const { fixture, product } = await runnableProduct()
+    const userId = fixture.users.get('DATA_STEWARD')!
+    const catalogue = {
+      ...emptyExternalMetadata(),
+      sources: [
+        {
+          name: 'catalogue_only_source',
+          system: 'Collibra',
+          description: '',
+          owner: '',
+          externalCertification: '',
+          layer: 'UNKNOWN' as const,
+        },
+      ],
+    }
+    await prisma.externalMetadataImport.create({
+      data: {
+        workspaceId: fixture.workspaceId,
+        productId: product.id,
+        connectorKey: 'collibra-json',
+        fileName: 'collibra.json',
+        contentHash: `h2-${Date.now()}`,
+        payloadJson: JSON.stringify(catalogue),
+        summary: 'test',
+        importedById: userId,
+      },
+    })
+
+    // Everything on disk, when nothing is filtered.
+    const everything = await loadExternalMetadata(product.id)
+    expect(everything.sources.map((s) => s.name)).toContain('catalogue_only_source')
+
+    // A run that asked only for modelling context must not receive the catalogue.
+    const modellingOnly = await loadExternalMetadata(product.id, ['DATA_MODELLING'])
+    expect(modellingOnly.sources).toHaveLength(0)
+
+    // A run that asked for nothing receives nothing.
+    const none = await loadExternalMetadata(product.id, [])
+    expect(none.sources).toHaveLength(0)
   })
 })
