@@ -13,6 +13,10 @@ For hosting it on a server rather than a laptop, start with
 [hosting-prerequisites.md](hosting-prerequisites.md) — the code changes that have to happen first —
 then the guide for your cloud: [AWS](AWS.md), [Azure](AZURE.md) or [GCP](GCP.md).
 
+For building ADPM on a client network rather than running this repository — the functional spec,
+the physical data model, what data belongs in every table, and the three cloud reference
+architectures — see [docs/build-spec/](build-spec/README.md).
+
 ---
 
 ## 1. First run

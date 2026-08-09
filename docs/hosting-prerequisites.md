@@ -7,6 +7,10 @@ of them — authentication — is a hard blocker for anything reachable beyond a
 them. It is shared by the [AWS](AWS.md), [Azure](AZURE.md) and [GCP](GCP.md) guides, so it is the
 one place to update when any of it stops being true.
 
+For the reference architectures these guides deploy into — and for the build specification behind
+them, including the per-table data loading specification — see
+[docs/build-spec/](build-spec/README.md).
+
 ---
 
 ## 1. Blocking for anything other people can reach
