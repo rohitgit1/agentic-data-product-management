@@ -11,6 +11,7 @@ const credentialsSchema = z.object({
 })
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'adpm-local-development-secret-change-me',
   session: { strategy: 'jwt' },
   pages: { signIn: '/signin' },
   trustHost: true,
