@@ -12,11 +12,33 @@ export default async function SignInPage({
 }: {
   searchParams: Promise<{ error?: string }>
 }) {
-  const user = await currentUser()
+  let user = null
+  try {
+    user = await currentUser()
+  } catch (err) {
+    console.warn('Unable to get currentUser on signin page:', err)
+  }
   if (user) redirect('/')
+
   const { error } = await searchParams
 
-  const seeded = await prisma.user.findMany({ orderBy: { email: 'asc' }, select: { email: true, name: true, title: true } })
+  let seeded: Array<{ email: string; name: string; title: string }> = []
+  try {
+    seeded = await prisma.user.findMany({
+      orderBy: { email: 'asc' },
+      select: { email: true, name: true, title: true },
+    })
+  } catch (err) {
+    console.warn('Unable to fetch seeded users from DB, falling back to static ROLES list:', err)
+  }
+
+  const userList = seeded.length > 0
+    ? seeded
+    : ROLES.map((r) => ({
+        email: r.seedEmail,
+        name: r.seedName,
+        title: r.name,
+      }))
 
   async function authenticate(formData: FormData) {
     'use server'
@@ -63,7 +85,7 @@ export default async function SignInPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {seeded.map((seed) => (
+                    {userList.map((seed) => (
                       <tr key={seed.email} className="border-b border-ink-100 last:border-0">
                         <td className="px-5 py-2 font-mono text-xs text-ink-800">{seed.email}</td>
                         <td className="px-2 py-2 text-ink-700">{seed.name}</td>
