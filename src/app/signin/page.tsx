@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/db'
 import { ROLES } from '@/lib/domain/roles'
 import { BrandMark, BrandWordmark } from '@/components/brand'
 import { Button, Card, CardBody, CardHeader, ErrorText, Field, inputClass } from '@/components/ui'
@@ -19,24 +18,11 @@ export default async function SignInPage({
     error = undefined
   }
 
-  let seeded: Array<{ email: string; name: string; title: string }> = []
-  try {
-    seeded = await prisma.user.findMany({
-      orderBy: { email: 'asc' },
-      select: { email: true, name: true, title: true },
-    })
-  } catch (err) {
-    console.warn('Unable to fetch seeded users from DB, falling back to static ROLES list:', err)
-  }
-
-  const userList =
-    seeded && seeded.length > 0
-      ? seeded
-      : ROLES.map((r) => ({
-          email: r.seedEmail,
-          name: r.seedName,
-          title: r.name,
-        }))
+  const userList = ROLES.map((r) => ({
+    email: r.seedEmail,
+    name: r.seedName,
+    title: r.name,
+  }))
 
   return (
     <div className="flex min-h-screen flex-col justify-center bg-ink-50 py-12 sm:px-6 lg:px-8">
