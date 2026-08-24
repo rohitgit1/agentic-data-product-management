@@ -1,6 +1,4 @@
-import { redirect } from 'next/navigation'
 import { prisma } from '@/lib/db'
-import { currentUser } from '@/lib/auth/session'
 import { ROLES } from '@/lib/domain/roles'
 import { BrandMark, BrandWordmark } from '@/components/brand'
 import { Button, Card, CardBody, CardHeader, ErrorText, Field, inputClass } from '@/components/ui'
@@ -11,14 +9,6 @@ export default async function SignInPage({
 }: {
   searchParams?: Promise<{ error?: string }> | { error?: string }
 }) {
-  let user = null
-  try {
-    user = await currentUser()
-  } catch (err) {
-    console.warn('Unable to get currentUser on signin page:', err)
-  }
-  if (user) redirect('/')
-
   let error: string | undefined = undefined
   try {
     const sp = await searchParams
