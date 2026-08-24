@@ -16,19 +16,19 @@ function getPostgresUrl(): string | undefined {
       return url
     }
   }
-  return process.env.DATABASE_URL
+  return undefined
 }
 
-const datasourceUrl = getPostgresUrl()
+const dbUrl = getPostgresUrl()
 
-if (datasourceUrl && (datasourceUrl.startsWith('postgres://') || datasourceUrl.startsWith('postgresql://'))) {
-  process.env.DATABASE_URL = datasourceUrl
+if (dbUrl) {
+  process.env.DATABASE_URL = dbUrl
 }
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    datasourceUrl,
+    datasources: dbUrl ? { db: { url: dbUrl } } : undefined,
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   })
 
