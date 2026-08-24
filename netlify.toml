@@ -1,0 +1,13 @@
+# Netlify configuration for Agentic Data Product Management (ADPM)
+[build]
+  command = "pnpm build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_FLAGS = "--no-frozen-lockfile"
+  ADPM_WORKSPACE_DIR = "off"
+  AUTH_TRUST_HOST = "true"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

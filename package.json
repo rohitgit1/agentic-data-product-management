@@ -2,7 +2,7 @@
   "name": "adpm",
   "version": "0.1.0",
   "private": true,
-  "description": "Agentic Data Product Management \u2014 supervised-autonomy lifecycle management for data products.",
+  "description": "Agentic Data Product Management — supervised-autonomy lifecycle management for data products.",
   "scripts": {
     "dev": "prisma generate && next dev",
     "build": "prisma generate && next build",
@@ -53,6 +53,7 @@
     "@types/react-dom": "19.2.1",
     "eslint": "^9.29.0",
     "eslint-config-next": "15.5.22",
+    "netlify-cli": "^27.1.2",
     "prisma": "6.19.3",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.1",
