@@ -33,11 +33,31 @@ export const DEFAULT_DEMO_SESSION: SessionContext = {
 }
 
 export async function currentUser() {
+  let hasToken = false
+  try {
+    const jar = await cookies()
+    const all = jar.getAll()
+    hasToken = all.some((c) => c.name.includes('session-token') || c.name.includes('next-auth'))
+  } catch {
+    hasToken = false
+  }
+
+  // If no session token cookie is set, return static demo user immediately to prevent NextAuth redirects
+  if (!hasToken) {
+    return {
+      id: DEFAULT_DEMO_SESSION.userId,
+      email: DEFAULT_DEMO_SESSION.userEmail,
+      name: DEFAULT_DEMO_SESSION.userName,
+      title: DEFAULT_DEMO_SESSION.userTitle,
+      door: DEFAULT_DEMO_SESSION.door,
+      archivedAt: null,
+    }
+  }
+
   let session = null
   try {
     session = await auth()
   } catch (err: any) {
-    // NextAuth throws NEXT_REDIRECT when unauthenticated; catch it to allow demo mode
     return {
       id: DEFAULT_DEMO_SESSION.userId,
       email: DEFAULT_DEMO_SESSION.userEmail,
