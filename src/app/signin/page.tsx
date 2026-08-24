@@ -1,22 +1,10 @@
 import { ROLES } from '@/lib/domain/roles'
 import { BrandMark, BrandWordmark } from '@/components/brand'
-import { Button, Card, CardBody, CardHeader, ErrorText, Field, inputClass } from '@/components/ui'
+import { Button, Card, CardBody, CardHeader, Field, inputClass } from '@/components/ui'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SignInPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>
-}) {
-  let error: string | undefined = undefined
-  try {
-    const sp = await searchParams
-    error = sp?.error
-  } catch {
-    error = undefined
-  }
-
+export default function SignInPage() {
   return (
     <div className="flex min-h-screen flex-col justify-center bg-ink-50 py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -57,14 +45,6 @@ export default async function SignInPage({
         <Card className="mt-4">
           <CardHeader title="Custom credentials" />
           <CardBody>
-            {error && (
-              <ErrorText className="mb-4">
-                {error === 'CredentialsSignin'
-                  ? 'Invalid email or password.'
-                  : `Sign-in failed (${error}).`}
-              </ErrorText>
-            )}
-
             <form method="POST" action="/api/auth/callback/credentials" className="space-y-4">
               <input type="hidden" name="redirectTo" value="/inbox" />
               <Field label="Email address" htmlFor="email">
