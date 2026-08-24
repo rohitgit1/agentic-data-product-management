@@ -14,7 +14,7 @@
     "test:e2e": "playwright test",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
-    "db:seed": "prisma db push --accept-data-loss && tsx prisma/seed.ts",
+    "db:seed": "node scripts/prepare-postgres.js && prisma db push --accept-data-loss && tsx prisma/seed.ts",
     "db:reset": "node -e \"require('node:fs').rmSync('prisma/dev.db', { force: true })\" && pnpm db:seed",
     "db:pg:prepare": "tsx scripts/prepare-postgres.ts",
     "db:pg:setup": "pnpm db:pg:prepare && prisma db push --schema prisma/schema.postgres.prisma --skip-generate --accept-data-loss && prisma generate --schema prisma/schema.postgres.prisma",
