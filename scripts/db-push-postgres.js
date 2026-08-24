@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -41,12 +42,12 @@ const pgUrl = candidates.find(
 
 if (pgUrl) {
   process.env.DATABASE_URL = pgUrl
-  const envPath = resolve(process.cwd(), '.env')
-  const envContent = `DATABASE_URL="${pgUrl}"\nPOSTGRES_PRISMA_URL="${pgUrl}"\n`
-  writeFileSync(envPath, envContent, 'utf8')
-  console.log('[prepare-postgres] Set DATABASE_URL in process.env and written to .env')
+  console.log('[db-push-postgres] Overriding process.env.DATABASE_URL with PostgreSQL URL')
+} else {
+  console.warn('[db-push-postgres] Warning: No PostgreSQL URL found in environment variables')
 }
 
+// Force schema.prisma provider to postgresql if cloud/postgres
 const isCloudOrPostgres =
   Boolean(process.env.VERCEL) ||
   Boolean(process.env.NETLIFY) ||
@@ -64,5 +65,25 @@ if (isCloudOrPostgres) {
   )
 
   writeFileSync(SOURCE, updated, 'utf8')
-  console.log('[prepare-postgres] Configured schema.prisma with provider = "postgresql"')
+  console.log('[db-push-postgres] Configured schema.prisma with provider = "postgresql"')
+}
+
+console.log('[db-push-postgres] Pushing schema to database...')
+try {
+  execSync('npx prisma db push --skip-generate --accept-data-loss', {
+    stdio: 'inherit',
+    env: process.env,
+  })
+} catch (err) {
+  console.warn('[db-push-postgres] Warning during db push:', err.message)
+}
+
+console.log('[db-push-postgres] Running seed script...')
+try {
+  execSync('npx tsx prisma/seed.ts', {
+    stdio: 'inherit',
+    env: process.env,
+  })
+} catch (err) {
+  console.warn('[db-push-postgres] Warning during seed:', err.message)
 }
