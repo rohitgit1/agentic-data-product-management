@@ -1,34 +1,34 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-const SOURCE = resolve(process.cwd(), 'prisma/schema.prisma')
-const TARGET = resolve(process.cwd(), 'prisma/schema.postgres.prisma')
+const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.DATABASE_URL || ''
+const isPostgres = dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://')
 
-const BANNER = `// GENERATED FILE — do not edit.
+if (isPostgres) {
+  const SOURCE = resolve(process.cwd(), 'prisma/schema.prisma')
+  const TARGET = resolve(process.cwd(), 'prisma/schema.postgres.prisma')
+
+  const BANNER = `// GENERATED FILE — do not edit.
 //
 // Produced by scripts/prepare-postgres.js from prisma/schema.prisma. Edit the SQLite schema and
 // re-run \`pnpm db:pg:prepare\`; any edit made here is lost on the next run.
 `
 
-const DATASOURCE = /datasource\s+db\s*\{[^}]*\}/
+  const DATASOURCE = /datasource\s+db\s*\{[^}]*\}/
 
-function main() {
   const source = readFileSync(SOURCE, 'utf8')
-  const datasource = source.match(DATASOURCE)
+  if (source.includes('provider = "sqlite"')) {
+    const output =
+      BANNER +
+      source.replace(
+        DATASOURCE,
+        ['datasource db {', '  provider = "postgresql"', '  url      = env("DATABASE_URL")', '}'].join('\n'),
+      )
 
-  if (!datasource) {
-    throw new Error(`No datasource block found in ${SOURCE}. Cannot derive the Postgres schema.`)
+    writeFileSync(SOURCE, output, 'utf8')
+    writeFileSync(TARGET, output, 'utf8')
+    console.log('[prepare-postgres] Updated schema.prisma for PostgreSQL')
   }
-
-  const output =
-    BANNER +
-    source.replace(
-      DATASOURCE,
-      ['datasource db {', '  provider = "postgresql"', '  url      = env("DATABASE_URL")', '}'].join('\n'),
-    )
-
-  writeFileSync(TARGET, output, 'utf8')
-  console.log(`Wrote ${TARGET}`)
+} else {
+  console.log('[prepare-postgres] Retaining SQLite schema.prisma')
 }
-
-main()

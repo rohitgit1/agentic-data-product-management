@@ -22,7 +22,7 @@
     "monitor": "tsx scripts/monitor.ts",
     "pack:validate": "tsx scripts/validate-packs.ts",
     "screenshots": "tsx scripts/screenshots.ts",
-    "postinstall": "node scripts/ensure-env.mjs && prisma generate"
+    "postinstall": "node scripts/ensure-env.mjs && node scripts/prepare-postgres.js && npx prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
