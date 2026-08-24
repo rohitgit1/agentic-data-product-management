@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { currentUser, requireSession, landingPathFor } from '@/lib/auth/session'
+import { requireSession, landingPathFor } from '@/lib/auth/session'
 import { LinkButton } from '@/components/ui'
 
 const COMMITMENTS = [
@@ -47,8 +46,6 @@ const DOORS = [
 ]
 
 export default async function LandingPage() {
-  const user = await currentUser()
-  if (!user) redirect('/signin')
   const session = await requireSession()
 
   return (
@@ -59,14 +56,12 @@ export default async function LandingPage() {
       <h1 className="mt-2 text-3xl font-semibold text-ink-900">
         Agentic Data Product Management
       </h1>
-      <p className="mt-3 max-w-3xl text-ink-700">
-        Organisations build data assets that nobody asked for, nobody trusts and nobody can find —
-        and then add AI on top of that same foundation. ADPM makes it structurally impossible to
-        build a data product without first naming the consumer, the decision they cannot make today,
-        and the human who signed off every design choice along the way.
+      <p className="mt-2 max-w-2xl text-base text-ink-600">
+        Manage the full lifecycle of data products — agents do the work, humans make every
+        decision.
       </p>
 
-      <h2 className="mt-10 text-lg font-semibold text-ink-900">Five commitments</h2>
+      <h2 className="mt-10 text-lg font-semibold text-ink-900">Core Commitments</h2>
       <ol className="mt-4 grid gap-4 sm:grid-cols-2">
         {COMMITMENTS.map((commitment, index) => (
           <li key={commitment.title} className="rounded-lg border border-ink-200 bg-white p-4">

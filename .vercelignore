@@ -1,0 +1,7 @@
+node_modules
+.next
+prisma/dev.db
+.git
+.pnpm-store
+dist
+out

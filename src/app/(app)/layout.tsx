@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { signOut } from '@/auth'
 import { BrandMark, BrandWordmark } from '@/components/brand'
 import { MainNav } from '@/components/nav'
 import { TourOverlay } from '@/components/tour'
@@ -8,15 +7,11 @@ import { GUIDED_TOURS } from '@/lib/guides/registry'
 import { requireSession, listWorkspacesForUser } from '@/lib/auth/session'
 import { roleName } from '@/lib/domain/roles'
 import { Badge } from '@/components/ui'
+import { endSession } from './actions'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession()
   const workspaces = await listWorkspacesForUser(session.userId)
-
-  async function endSession() {
-    'use server'
-    await signOut({ redirectTo: '/signin' })
-  }
 
   return (
     <div className="min-h-screen">
@@ -46,34 +41,27 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               activeSlug={session.workspaceSlug}
             />
             <span className="text-white">
-              {session.name}
+              {session.userName}
               <span className="ml-1 text-xs text-brand-300">
-                ({session.roles.map(roleName).join(', ') || 'no roles'})
+                ({session.roles.map(roleName).join(', ')})
               </span>
             </span>
             <form action={endSession}>
               <button
                 type="submit"
-                className="rounded-md border border-white/30 px-2 py-1 text-xs text-white transition hover:bg-white/10"
+                className="rounded-md border border-brand-700 bg-brand-850 px-2.5 py-1 text-xs font-medium text-brand-100 hover:bg-brand-800"
               >
                 Sign out
               </button>
             </form>
           </div>
         </div>
-        <div className="mx-auto max-w-[1400px] border-t border-white/10 px-6 py-2">
-          <MainNav />
-        </div>
-        <div className="brand-rule h-1" />
+        <MainNav door={session.door} />
       </header>
-      <main id="main" className="mx-auto max-w-[1400px] px-6 py-8">
-        {children}
-      </main>
+
+      <main id="main">{children}</main>
+
       <TourOverlay tours={GUIDED_TOURS} />
-      <footer className="mx-auto max-w-[1400px] px-6 pb-10 text-xs text-ink-500">
-        ADPM designs, governs and manages data products. It does not run pipelines, execute
-        transformations or query a warehouse — and no agent can approve, commit or publish anything.
-      </footer>
     </div>
   )
 }

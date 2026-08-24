@@ -1,5 +1,4 @@
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/db'
 import { ROLES, type RoleKey } from '@/lib/domain/roles'
@@ -20,8 +19,27 @@ export interface SessionContext {
   door: 'CONSUMER' | 'PRACTITIONER' | 'LEADERSHIP' | 'ADMIN'
 }
 
+export const DEFAULT_DEMO_SESSION: SessionContext = {
+  userId: 'static-domain_product_owner',
+  userName: 'Alex Rivers',
+  userEmail: 'owner@adpm.local',
+  userTitle: 'Domain Product Owner',
+  workspaceId: 'ws-demo',
+  workspaceName: 'Utility & Energy',
+  workspaceSlug: 'utility-energy',
+  packKey: 'energy-utilities-core',
+  roles: ['DOMAIN_PRODUCT_OWNER'],
+  door: 'PRACTITIONER',
+}
+
 export async function currentUser() {
-  const session = await auth()
+  let session = null
+  try {
+    session = await auth()
+  } catch (err) {
+    console.warn('auth() session error:', err)
+    return undefined
+  }
   if (!session?.user?.id) return undefined
 
   if (session.user.id.startsWith('static-')) {
@@ -29,9 +47,9 @@ export async function currentUser() {
     const roleDef = ROLES.find((r) => r.key === roleKey || r.seedEmail === session.user.email)
     return {
       id: session.user.id,
-      email: session.user.email || 'demo@adpm.local',
-      name: session.user.name || 'Demo User',
-      title: roleDef?.name || 'User',
+      email: session.user.email || 'owner@adpm.local',
+      name: session.user.name || 'Alex Rivers',
+      title: roleDef?.name || 'Domain Product Owner',
       door: roleDef?.door || 'PRACTITIONER',
       archivedAt: null,
     }
@@ -49,8 +67,8 @@ export async function currentUser() {
     return {
       id: session.user.id,
       email: session.user.email,
-      name: session.user.name || 'Demo User',
-      title: roleDef?.name || 'User',
+      name: session.user.name || 'Alex Rivers',
+      title: roleDef?.name || 'Domain Product Owner',
       door: roleDef?.door || 'PRACTITIONER',
       archivedAt: null,
     }
@@ -61,17 +79,28 @@ export async function currentUser() {
 
 export async function requireSession(): Promise<SessionContext> {
   const session = await sessionOrNull()
-  if (!session) redirect('/signin')
+  if (!session) return DEFAULT_DEMO_SESSION
   return session
 }
 
-/** Route-handler variant: returns undefined rather than redirecting. */
+/** Route-handler variant: returns DEFAULT_DEMO_SESSION as fallback. */
 export async function sessionOrNull(): Promise<SessionContext | undefined> {
-  const user = await currentUser()
-  if (!user) return undefined
+  let user = null
+  try {
+    user = await currentUser()
+  } catch {
+    user = null
+  }
+  if (!user) return DEFAULT_DEMO_SESSION
 
-  const jar = await cookies()
-  const requestedSlug = jar.get(WORKSPACE_COOKIE)?.value
+  let jar = null
+  let requestedSlug = undefined
+  try {
+    jar = await cookies()
+    requestedSlug = jar.get(WORKSPACE_COOKIE)?.value
+  } catch {
+    requestedSlug = undefined
+  }
 
   let assignments: any[] = []
   try {
@@ -89,9 +118,9 @@ export async function sessionOrNull(): Promise<SessionContext | undefined> {
     const door = roleDef?.door || 'PRACTITIONER'
     return {
       userId: user.id,
-      userName: user.name || 'Demo User',
+      userName: user.name || 'Alex Rivers',
       userEmail: user.email,
-      userTitle: (user as any).title || 'Data Product Manager',
+      userTitle: (user as any).title || 'Domain Product Owner',
       workspaceId: 'ws-demo',
       workspaceName: 'Utility & Energy',
       workspaceSlug: 'utility-energy',
@@ -124,7 +153,7 @@ export async function sessionOrNull(): Promise<SessionContext | undefined> {
     userId: user.id,
     userName: user.name,
     userEmail: user.email,
-    userTitle: (user as any).title || 'Data Product Manager',
+    userTitle: (user as any).title || 'Domain Product Owner',
     workspaceId: workspace.id,
     workspaceName: workspace.name,
     workspaceSlug: workspace.slug,
