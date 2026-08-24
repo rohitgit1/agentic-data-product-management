@@ -109,51 +109,32 @@ export async function sessionOrNull(): Promise<SessionContext | undefined> {
       include: { workspace: true },
     })
   } catch (err) {
-    console.warn('roleAssignment fetch warning:', err)
+    console.warn('sessionOrNull assignments fetch warning:', err)
   }
 
-  if (!assignments || assignments.length === 0) {
-    const roleDef = ROLES.find((r) => r.seedEmail === user.email)
-    const fallbackRole = (roleDef?.key || 'DOMAIN_PRODUCT_OWNER') as RoleKey
-    const door = roleDef?.door || 'PRACTITIONER'
+  if (assignments.length === 0) {
     return {
+      ...DEFAULT_DEMO_SESSION,
       userId: user.id,
-      userName: user.name || 'Alex Rivers',
-      userEmail: user.email,
-      userTitle: (user as any).title || 'Domain Product Owner',
-      workspaceId: 'ws-demo',
-      workspaceName: 'Utility & Energy',
-      workspaceSlug: 'utility-energy',
-      packKey: 'energy-utilities-core',
-      roles: [fallbackRole],
-      door,
+      userName: user.name || DEFAULT_DEMO_SESSION.userName,
+      userEmail: user.email || DEFAULT_DEMO_SESSION.userEmail,
+      userTitle: user.title || DEFAULT_DEMO_SESSION.userTitle,
+      door: user.door || DEFAULT_DEMO_SESSION.door,
     }
   }
 
-  const workspace =
-    assignments.find((a) => a.workspace.slug === requestedSlug)?.workspace ??
-    assignments.find((a) => a.workspace.slug === 'utility-energy')?.workspace ??
-    assignments[0]!.workspace
+  let chosen = assignments.find((a: any) => a.workspace?.slug === requestedSlug)
+  if (!chosen) chosen = assignments[0]
 
-  let roles: RoleKey[] = []
-  try {
-    roles = await rolesForUser(user.id, workspace.id)
-  } catch (err) {
-    console.warn('rolesForUser fetch warning:', err)
-  }
-
-  if (roles.length === 0) {
-    const roleDef = ROLES.find((r) => r.seedEmail === user.email)
-    roles = [(roleDef?.key || 'DOMAIN_PRODUCT_OWNER') as RoleKey]
-  }
-
+  const workspace = chosen.workspace
+  const roles = await rolesForUser(user.id, workspace.id)
   const door = doorFor(roles)
 
   return {
     userId: user.id,
     userName: user.name,
     userEmail: user.email,
-    userTitle: (user as any).title || 'Domain Product Owner',
+    userTitle: user.title,
     workspaceId: workspace.id,
     workspaceName: workspace.name,
     workspaceSlug: workspace.slug,
@@ -203,14 +184,14 @@ export async function listWorkspacesForUser(userId: string) {
       include: { workspace: true },
       distinct: ['workspaceId'],
     })
-    return assignments
-      .map((a: any) => a.workspace)
-      .sort((a: any, b: any) => a.name.localeCompare(b.name))
+    const list = assignments.map((a: any) => a.workspace).filter(Boolean).sort((a: any, b: any) => a.name.localeCompare(b.name))
+    if (list.length > 0) return list
   } catch {
-    return [
-      { id: 'ws-demo', slug: 'utility-energy', name: 'Utility & Energy', packKey: 'energy-utilities-core' }
-    ]
+    // fallback
   }
+  return [
+    { id: 'ws-demo', slug: 'utility-energy', name: 'Utility & Energy', packKey: 'energy-utilities-core' }
+  ]
 }
 
 export const WORKSPACE_COOKIE_NAME = WORKSPACE_COOKIE
