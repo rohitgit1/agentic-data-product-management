@@ -1,7 +1,6 @@
 import { ROLES } from '@/lib/domain/roles'
 import { BrandMark, BrandWordmark } from '@/components/brand'
 import { Button, Card, CardBody, CardHeader, ErrorText, Field, inputClass } from '@/components/ui'
-import { authenticate } from './actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,12 +16,6 @@ export default async function SignInPage({
   } catch {
     error = undefined
   }
-
-  const userList = ROLES.map((r) => ({
-    email: r.seedEmail,
-    name: r.seedName,
-    title: r.name,
-  }))
 
   return (
     <div className="flex min-h-screen flex-col justify-center bg-ink-50 py-12 sm:px-6 lg:px-8">
@@ -44,14 +37,15 @@ export default async function SignInPage({
               Each user holds a different set of doors, approvals, and write privileges.
               Click any role to enter instantly.
             </p>
-            {userList.map((u) => (
-              <form key={u.email} action={authenticate} className="block">
-                <input type="hidden" name="email" value={u.email} />
+            {ROLES.map((r) => (
+              <form key={r.seedEmail} method="POST" action="/api/auth/callback/credentials" className="block">
+                <input type="hidden" name="email" value={r.seedEmail} />
                 <input type="hidden" name="password" value="adpm-demo" />
+                <input type="hidden" name="redirectTo" value="/inbox" />
                 <Button type="submit" variant="secondary" className="w-full justify-between text-left">
                   <span>
-                    <span className="font-semibold text-ink-900">{u.name}</span>
-                    <span className="ml-2 text-xs text-ink-500">({u.title})</span>
+                    <span className="font-semibold text-ink-900">{r.seedName}</span>
+                    <span className="ml-2 text-xs text-ink-500">({r.name})</span>
                   </span>
                   <span className="text-xs font-semibold text-accent-600">Enter &rarr;</span>
                 </Button>
@@ -71,7 +65,8 @@ export default async function SignInPage({
               </ErrorText>
             )}
 
-            <form action={authenticate} className="space-y-4">
+            <form method="POST" action="/api/auth/callback/credentials" className="space-y-4">
+              <input type="hidden" name="redirectTo" value="/inbox" />
               <Field label="Email address" htmlFor="email">
                 <input
                   id="email"
