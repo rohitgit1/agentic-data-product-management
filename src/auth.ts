@@ -13,7 +13,6 @@ const credentialsSchema = z.object({
 export const { handlers, signIn, signOut, auth } = NextAuth({
   secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'adpm-local-development-secret-change-me',
   session: { strategy: 'jwt' },
-  pages: { signIn: '/signin' },
   trustHost: true,
   providers: [
     Credentials({
@@ -49,12 +48,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user?.id) token.sub = user.id
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id
+        token.email = user.email
+        token.name = user.name
+      }
       return token
     },
-    session({ session, token }) {
-      if (token.sub) session.user.id = token.sub
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string
+        session.user.email = token.email as string
+        session.user.name = token.name as string
+      }
       return session
     },
   },
