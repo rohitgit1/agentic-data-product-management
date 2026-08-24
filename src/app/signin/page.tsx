@@ -1,11 +1,10 @@
 import { redirect } from 'next/navigation'
-import { AuthError } from 'next-auth'
-import { signIn } from '@/auth'
 import { prisma } from '@/lib/db'
-import { currentUser, landingPathFor } from '@/lib/auth/session'
+import { currentUser } from '@/lib/auth/session'
 import { ROLES } from '@/lib/domain/roles'
 import { BrandMark, BrandWordmark } from '@/components/brand'
 import { Button, Card, CardBody, CardHeader, ErrorText, Field, inputClass } from '@/components/ui'
+import { authenticate } from './actions'
 
 export default async function SignInPage({
   searchParams,
@@ -46,22 +45,6 @@ export default async function SignInPage({
           name: r.seedName,
           title: r.name,
         }))
-
-  async function authenticate(formData: FormData) {
-    'use server'
-    try {
-      await signIn('credentials', {
-        email: String(formData.get('email') ?? ''),
-        password: String(formData.get('password') ?? ''),
-        redirectTo: landingPathFor('PRACTITIONER'),
-      })
-    } catch (err) {
-      if (err instanceof AuthError) {
-        redirect(`/signin?error=${encodeURIComponent(err.type)}`)
-      }
-      throw err
-    }
-  }
 
   return (
     <div className="flex min-h-screen flex-col justify-center bg-ink-50 py-12 sm:px-6 lg:px-8">
