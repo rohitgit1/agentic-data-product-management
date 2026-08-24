@@ -33,14 +33,42 @@ export const DEFAULT_DEMO_SESSION: SessionContext = {
 }
 
 export async function currentUser() {
+  const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL
+  if (!dbUrl || dbUrl.includes('placeholder') || dbUrl.includes('dummy')) {
+    return {
+      id: DEFAULT_DEMO_SESSION.userId,
+      email: DEFAULT_DEMO_SESSION.userEmail,
+      name: DEFAULT_DEMO_SESSION.userName,
+      title: DEFAULT_DEMO_SESSION.userTitle,
+      door: DEFAULT_DEMO_SESSION.door,
+      archivedAt: null,
+    }
+  }
+
   let session = null
   try {
     session = await auth()
   } catch (err) {
     console.warn('auth() session error:', err)
-    return undefined
+    return {
+      id: DEFAULT_DEMO_SESSION.userId,
+      email: DEFAULT_DEMO_SESSION.userEmail,
+      name: DEFAULT_DEMO_SESSION.userName,
+      title: DEFAULT_DEMO_SESSION.userTitle,
+      door: DEFAULT_DEMO_SESSION.door,
+      archivedAt: null,
+    }
   }
-  if (!session?.user?.id) return undefined
+  if (!session?.user?.id) {
+    return {
+      id: DEFAULT_DEMO_SESSION.userId,
+      email: DEFAULT_DEMO_SESSION.userEmail,
+      name: DEFAULT_DEMO_SESSION.userName,
+      title: DEFAULT_DEMO_SESSION.userTitle,
+      door: DEFAULT_DEMO_SESSION.door,
+      archivedAt: null,
+    }
+  }
 
   if (session.user.id.startsWith('static-')) {
     const roleKey = session.user.id.replace('static-', '').toUpperCase()
@@ -74,7 +102,14 @@ export async function currentUser() {
     }
   }
 
-  return user
+  return user ?? {
+    id: DEFAULT_DEMO_SESSION.userId,
+    email: DEFAULT_DEMO_SESSION.userEmail,
+    name: DEFAULT_DEMO_SESSION.userName,
+    title: DEFAULT_DEMO_SESSION.userTitle,
+    door: DEFAULT_DEMO_SESSION.door,
+    archivedAt: null,
+  }
 }
 
 export async function requireSession(): Promise<SessionContext> {
@@ -112,7 +147,7 @@ export async function sessionOrNull(): Promise<SessionContext | undefined> {
     console.warn('sessionOrNull assignments fetch warning:', err)
   }
 
-  if (assignments.length === 0) {
+  if (!assignments || assignments.length === 0) {
     return {
       ...DEFAULT_DEMO_SESSION,
       userId: user.id,
