@@ -33,8 +33,11 @@ export const DEFAULT_DEMO_SESSION: SessionContext = {
 }
 
 export async function currentUser() {
-  const dbUrl = process.env.POSTGRES_PRISMA_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL
-  if (!dbUrl || dbUrl.includes('placeholder') || dbUrl.includes('dummy')) {
+  let session = null
+  try {
+    session = await auth()
+  } catch (err: any) {
+    // NextAuth throws NEXT_REDIRECT when unauthenticated; catch it to allow demo mode
     return {
       id: DEFAULT_DEMO_SESSION.userId,
       email: DEFAULT_DEMO_SESSION.userEmail,
@@ -45,20 +48,6 @@ export async function currentUser() {
     }
   }
 
-  let session = null
-  try {
-    session = await auth()
-  } catch (err) {
-    console.warn('auth() session error:', err)
-    return {
-      id: DEFAULT_DEMO_SESSION.userId,
-      email: DEFAULT_DEMO_SESSION.userEmail,
-      name: DEFAULT_DEMO_SESSION.userName,
-      title: DEFAULT_DEMO_SESSION.userTitle,
-      door: DEFAULT_DEMO_SESSION.door,
-      archivedAt: null,
-    }
-  }
   if (!session?.user?.id) {
     return {
       id: DEFAULT_DEMO_SESSION.userId,
@@ -113,9 +102,13 @@ export async function currentUser() {
 }
 
 export async function requireSession(): Promise<SessionContext> {
-  const session = await sessionOrNull()
-  if (!session) return DEFAULT_DEMO_SESSION
-  return session
+  try {
+    const session = await sessionOrNull()
+    if (!session) return DEFAULT_DEMO_SESSION
+    return session
+  } catch {
+    return DEFAULT_DEMO_SESSION
+  }
 }
 
 /** Route-handler variant: returns DEFAULT_DEMO_SESSION as fallback. */
