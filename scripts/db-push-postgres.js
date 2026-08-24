@@ -36,9 +36,20 @@ const candidates = [
   process.env.DATABASE_URL,
 ]
 
-const pgUrl = candidates.find(
+let pgUrl = candidates.find(
   (url) => url && (url.startsWith('postgres://') || url.startsWith('postgresql://'))
 )
+
+if (!pgUrl) {
+  const host = process.env.PGHOST || process.env.POSTGRES_HOST
+  const user = process.env.PGUSER || process.env.POSTGRES_USER
+  const pass = process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD
+  const db = process.env.PGDATABASE || process.env.POSTGRES_DATABASE || 'neondb'
+
+  if (host && user && pass) {
+    pgUrl = `postgres://${user}:${pass}@${host}/${db}?sslmode=require`
+  }
+}
 
 if (pgUrl) {
   process.env.DATABASE_URL = pgUrl
