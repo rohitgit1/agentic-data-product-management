@@ -79,22 +79,26 @@ if (isCloudOrPostgres) {
   console.log('[db-push-postgres] Configured schema.prisma with provider = "postgresql"')
 }
 
-console.log('[db-push-postgres] Pushing schema to database...')
-try {
-  execSync('npx prisma db push --skip-generate --accept-data-loss', {
-    stdio: 'inherit',
-    env: process.env,
-  })
-} catch (err) {
-  console.warn('[db-push-postgres] Warning during db push:', err.message)
-}
+if (pgUrl) {
+  console.log('[db-push-postgres] Pushing schema to database...')
+  try {
+    execSync('npx prisma db push --skip-generate --accept-data-loss', {
+      stdio: 'inherit',
+      env: process.env,
+    })
+  } catch (err) {
+    console.warn('[db-push-postgres] Warning during db push (non-fatal):', err.message)
+  }
 
-console.log('[db-push-postgres] Running seed script...')
-try {
-  execSync('npx tsx prisma/seed.ts', {
-    stdio: 'inherit',
-    env: process.env,
-  })
-} catch (err) {
-  console.warn('[db-push-postgres] Warning during seed:', err.message)
+  console.log('[db-push-postgres] Running seed script...')
+  try {
+    execSync('npx tsx prisma/seed.ts', {
+      stdio: 'inherit',
+      env: process.env,
+    })
+  } catch (err) {
+    console.warn('[db-push-postgres] Warning during seed (non-fatal):', err.message)
+  }
+} else {
+  console.log('[db-push-postgres] Skipping db push/seed (no PostgreSQL URL present during build step)')
 }
