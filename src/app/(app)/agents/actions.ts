@@ -38,7 +38,7 @@ export async function updateAgentSetting(formData: FormData) {
       ? agent.autonomyCeiling
       : parsed.autonomyLevel
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.agentSetting.upsert({
       where: { workspaceId_agentId: { workspaceId: session.workspaceId, agentId: agent.id } },
       update: { autonomyLevel: capped, enabled: parsed.enabled },
@@ -72,7 +72,7 @@ export async function updateWorkspaceAgentPolicy(formData: FormData) {
   const apiKey = String(formData.get('apiKey') ?? '')
   const model = String(formData.get('model') ?? '')
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.workspace.update({
       where: { id: session.workspaceId },
       data: { agentsEnabled, agentsMaySeeSampleData, agentBudgetUsd },
@@ -156,7 +156,7 @@ export async function updateModelAssignment(
   }
 
   const model = getModel(parsed.data.modelId)
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.modelAssignment.upsert({
       where: {
         workspaceId_autonomyLevel: {

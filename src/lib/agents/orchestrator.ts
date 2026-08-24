@@ -122,7 +122,7 @@ export async function startAgentRun(input: StartRunInput): Promise<string> {
   const toStage = clampStage(input.toStage ?? STAGES.length)
   if (toStage < fromStage) throw new AgentError('The last stage cannot come before the first.')
 
-  const run = await prisma.$transaction(async (tx) => {
+  const run = await prisma.$transaction(async (tx: any) => {
     const created = await tx.agentRun.create({
       data: {
         workspaceId: input.workspaceId,
@@ -489,7 +489,7 @@ async function finishRun(
   state: 'COMPLETED' | 'CANCELLED',
   reason: string,
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.agentRun.update({
       where: { id: runId },
       data: { state, endedAt: new Date(), endedReason: reason, statusDetail: reason },

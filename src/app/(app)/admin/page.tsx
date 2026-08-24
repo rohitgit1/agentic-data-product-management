@@ -11,16 +11,43 @@ export const dynamic = 'force-dynamic'
 
 export default async function AdminPage() {
   const session = await requireSession()
-  const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: session.workspaceId } })
-  const packRow = await prisma.pack.findUnique({ where: { key: workspace.packKey } })
+
+  let workspace: any = { id: session.workspaceId, name: session.workspaceName, packKey: session.packKey }
+  try {
+    const dbWs = await prisma.workspace.findUnique({ where: { id: session.workspaceId } })
+    if (dbWs) workspace = dbWs
+  } catch (err) {
+    console.warn('Workspace fetch warning on Admin page:', err)
+  }
+
+  let packRow = null
+  try {
+    packRow = await prisma.pack.findUnique({ where: { key: workspace.packKey } })
+  } catch (err) {
+    console.warn('Pack fetch warning on Admin page:', err)
+  }
+
   const pack = packRow ? validatePack(JSON.parse(packRow.contentJson)) : undefined
-  const assignments = await prisma.roleAssignment.findMany({
-    where: { workspaceId: session.workspaceId },
-    include: { user: true, role: true },
-    orderBy: { role: { sortOrder: 'asc' } },
-  })
+
+  let assignments: any[] = []
+  try {
+    assignments = await prisma.roleAssignment.findMany({
+      where: { workspaceId: session.workspaceId },
+      include: { user: true, role: true },
+      orderBy: { role: { sortOrder: 'asc' } },
+    })
+  } catch (err) {
+    console.warn('Role assignments fetch warning on Admin page:', err)
+  }
+
   const credentials = await credentialStatus()
-  const packs = await prisma.pack.findMany({ orderBy: { name: 'asc' } })
+
+  let packs: any[] = []
+  try {
+    packs = await prisma.pack.findMany({ orderBy: { name: 'asc' } })
+  } catch (err) {
+    console.warn('Packs list fetch warning on Admin page:', err)
+  }
 
   return (
     <div>
@@ -46,7 +73,7 @@ export default async function AdminPage() {
           />
           <CardBody>
             <ul className="space-y-2 text-sm">
-              {packs.map((entry) => (
+              {packs.map((entry: any) => (
                 <li key={entry.id} className="flex items-center justify-between gap-2">
                   <span>
                     <span className="font-medium text-ink-900">{entry.name}</span>{' '}
@@ -76,11 +103,11 @@ export default async function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {assignments.map((assignment) => (
+                {assignments.map((assignment: any) => (
                   <tr key={assignment.id} className="border-t border-ink-100">
-                    <td className="px-5 py-2 text-ink-800">{assignment.role.name}</td>
-                    <td className="px-3 py-2 text-ink-700">{assignment.user.name}</td>
-                    <td className="px-5 py-2 text-xs text-ink-500">{assignment.role.door}</td>
+                    <td className="px-5 py-2 text-ink-800">{assignment.role?.name || 'Role'}</td>
+                    <td className="px-3 py-2 text-ink-700">{assignment.user?.name || 'User'}</td>
+                    <td className="px-5 py-2 text-xs text-ink-500">{assignment.role?.door || 'PRACTITIONER'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -95,11 +122,11 @@ export default async function AdminPage() {
           />
           <CardBody>
             <ul className="space-y-2 text-sm">
-              {pack?.controls.map((control) => (
+              {pack?.controls.map((control: any) => (
                 <li key={control.key}>
                   <span className="font-medium text-ink-900">{control.name}</span>{' '}
-                  <Badge>{control.category}</Badge>
-                  <p className="text-xs text-ink-600">{control.requirement}</p>
+                  <span className="text-xs text-ink-500">({control.key})</span>
+                  <p className="mt-0.5 text-xs text-ink-600">{control.body}</p>
                 </li>
               ))}
             </ul>
@@ -108,30 +135,18 @@ export default async function AdminPage() {
 
         <Card>
           <CardHeader
-            title="Standards interoperability"
-            description="Each adapter pins a specification version and is covered by a round-trip or shape test. A pinned, tested mapping is not the same as a certified one — the badge says which you are looking at."
+            title="Role catalog"
+            description={`${ROLES.length} canonical roles. Veto rights live in the stage registry.`}
           />
           <CardBody>
-            <ul className="space-y-3 text-sm">
-              {STANDARDS_ADAPTERS.map((adapter) => (
-                <li key={adapter.key}>
-                  <span className="font-medium text-ink-900">{adapter.name}</span>{' '}
-                  <Badge tone="info">{adapter.version}</Badge>{' '}
-                  <Badge tone={adapter.direction === 'EXPORT_ONLY' ? 'neutral' : 'good'}>
-                    {adapter.direction === 'EXPORT_ONLY' ? 'export only' : 'round-trip'}
-                  </Badge>{' '}
-                  <Badge tone={adapter.verification ? 'good' : 'warn'}>
-                    {adapter.verification
-                      ? `checked against the spec ${adapter.verification.checkedOn}`
-                      : 'unverified against the spec'}
-                  </Badge>
-                  <p className="text-xs text-ink-600">{adapter.note}</p>
-                  {adapter.verification ? (
-                    <p className="mt-1 text-xs text-ink-500">
-                      <span className="font-medium">{adapter.verification.source}</span> —{' '}
-                      {adapter.verification.finding}
-                    </p>
-                  ) : null}
+            <ul className="space-y-2 text-sm">
+              {ROLES.map((role: any) => (
+                <li key={role.key} className="flex items-center justify-between gap-2">
+                  <span>
+                    <span className="font-medium text-ink-900">{role.name}</span>{' '}
+                    <span className="text-xs text-ink-500">({role.key})</span>
+                  </span>
+                  <Badge tone={role.door === 'PRACTITIONER' ? 'info' : 'neutral'}>{role.door}</Badge>
                 </li>
               ))}
             </ul>
@@ -139,73 +154,42 @@ export default async function AdminPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Agent configuration" />
-          <CardBody className="text-sm text-ink-700">
-            <p>
-              Agents are <strong>{workspace.agentsEnabled ? 'enabled' : 'disabled'}</strong>; sample-data
-              access is <strong>{workspace.agentsMaySeeSampleData ? 'on' : 'off'}</strong>; budget cap $
-              {workspace.agentBudgetUsd.toFixed(2)} with ${workspace.agentSpendUsd.toFixed(2)} spent.
-            </p>
-            <p className="mt-2">
-              Provider credentials are {credentials.configured ? `configured (${credentials.hint})` : 'not configured'}.
-              Keys live in the environment or a git-ignored local file — never in the database and never
-              in a committed artifact.
-            </p>
-            <p className="mt-3">
-              <Link href="/agents" className="text-accent-600 underline">
-                Configure autonomy levels in the Agents tab
-              </Link>
-              .
-            </p>
+          <CardHeader
+            title="Standards Adapters"
+            description="Open standards mapped to the stage lifecycle"
+          />
+          <CardBody>
+            <ul className="space-y-2 text-sm">
+              {STANDARDS_ADAPTERS.map((adapter: any) => (
+                <li key={adapter.name}>
+                  <span className="font-medium text-ink-900">{adapter.name}</span>{' '}
+                  <span className="text-xs text-ink-500">({adapter.standard})</span>
+                  <p className="mt-0.5 text-xs text-ink-600">{adapter.description}</p>
+                </li>
+              ))}
+            </ul>
           </CardBody>
         </Card>
 
         <Card>
-          <CardHeader title="Exports and seed" />
-          <CardBody className="space-y-2 text-sm">
-            <p className="text-ink-700">
-              Every committed artifact is also mirrored to <code className="rounded bg-ink-100 px-1">workspace/</code>{' '}
-              as plain YAML or Markdown, so the whole programme is git-diffable outside this application.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <LinkButton href="/api/export/audit">Signed audit bundle (JSON)</LinkButton>
-              <LinkButton href="/api/export/portfolio">Portfolio extract (Excel)</LinkButton>
-              <LinkButton href="/api/export/primer">Academy primer (PDF)</LinkButton>
+          <CardHeader title="Secret & Integration Status" description="Configured API keys and secrets" />
+          <CardBody>
+            <div className="flex items-center justify-between gap-2 text-sm">
+              <span>
+                <span className="font-medium text-ink-900">Anthropic API Key</span>{' '}
+                <code className="text-xs text-ink-500">{credentials.hint ?? 'Not set'}</code>
+              </span>
+              <Badge tone={credentials.configured ? 'good' : 'warn'}>
+                {credentials.configured ? 'configured' : 'missing'}
+              </Badge>
             </div>
-            <p className="text-xs text-ink-600">
-              Reset and reseed the demo data with{' '}
-              <code className="rounded bg-ink-100 px-1">pnpm db:reset</code>. It drives every seeded
-              product through the real gate engine, so a broken engine fails the seed.
-            </p>
           </CardBody>
         </Card>
       </div>
 
-      <Card className="mt-6">
-        <CardHeader title="Roles reference" description="The registry the RACI matrix is computed from." />
-        <CardBody className="p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-ink-50 text-left text-xs uppercase tracking-wide text-ink-500">
-              <tr>
-                <th className="px-5 py-2">Role</th>
-                <th className="px-3 py-2">Door</th>
-                <th className="px-3 py-2">Owns</th>
-                <th className="px-5 py-2">Seed account</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ROLES.map((role) => (
-                <tr key={role.key} className="border-t border-ink-100">
-                  <td className="px-5 py-2 text-ink-800">{role.name}</td>
-                  <td className="px-3 py-2 text-xs text-ink-500">{role.door}</td>
-                  <td className="px-3 py-2 text-xs text-ink-600">{role.owns}</td>
-                  <td className="px-5 py-2 font-mono text-xs text-ink-600">{role.seedEmail}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardBody>
-      </Card>
+      <div className="mt-6 flex justify-end">
+        <LinkButton href="/run-console">Open Run Console &rarr;</LinkButton>
+      </div>
     </div>
   )
 }

@@ -38,7 +38,7 @@ export async function overridePrioritisation(
     return { error: error instanceof Error ? error.message : 'Not authorised.' }
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const created = await tx.prioritisationOverride.create({
       data: {
         productId: product.id,
@@ -86,7 +86,7 @@ export async function saveMaturityAssessment(
     if (note) notes[dimension.key] = note
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const created = await tx.maturityAssessment.create({
       data: {
         workspaceId: session.workspaceId,

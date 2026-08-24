@@ -128,7 +128,7 @@ async function submitForReview({ input, stage, product, run }: TransitionContext
     )
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const updated = await tx.stageRun.update({
       where: { id: run.id },
       data: { state: 'IN_REVIEW', submittedAt: new Date() },
@@ -156,7 +156,7 @@ async function requestChanges({ input, stage, product, run, held }: TransitionCo
     )
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const updated = await tx.stageRun.update({
       where: { id: run.id },
       data: { state: 'CHANGES_REQUESTED' },
@@ -189,7 +189,7 @@ async function withdrawToDraft({
   if (run.state === 'APPROVED') {
     throw new TransitionError('An approved stage cannot be withdrawn. Commit a new version instead.')
   }
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const updated = await tx.stageRun.update({ where: { id: run.id }, data: { state: 'DRAFT' } })
     const gate = await tx.gate.findUnique({ where: { stageRunId: run.id } })
     if (gate && gate.state === 'OPEN') {
@@ -227,7 +227,7 @@ async function openGate({ input, stage, product, run, held }: TransitionContext)
     )
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     const existing = await tx.gate.findUnique({ where: { stageRunId: run.id } })
     const gate = existing
       ? await tx.gate.update({
@@ -335,7 +335,7 @@ export async function recordDecision(input: DecisionInput): Promise<DecisionResu
     throw new TransitionError('No eligible role to vote with on this gate.')
   }
 
-  return prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx: any) => {
     await tx.approval.upsert({
       where: {
         gateId_userId_roleKey: { gateId: gate.id, userId: input.userId, roleKey: votingRole },

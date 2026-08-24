@@ -191,7 +191,7 @@ export async function addCommentAction(_prev: Result | undefined, formData: Form
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'Write a comment.' }
 
   const product = await prisma.dataProduct.findUniqueOrThrow({ where: { id: parsed.data.productId } })
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const created = await tx.comment.create({
       data: {
         productId: product.id,
@@ -223,7 +223,7 @@ export async function resolveCommentAction(formData: FormData) {
     where: { id: commentId },
     include: { product: true },
   })
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.comment.update({
       where: { id: comment.id },
       data: { resolvedAt: new Date(), resolvedById: session.userId },
@@ -331,7 +331,7 @@ export async function raiseChangeRequestAction(_prev: Result | undefined, formDa
   if (!parsed.success) return { error: 'Give the change request a title of at least five characters.' }
 
   const product = await prisma.dataProduct.findUniqueOrThrow({ where: { id: parsed.data.productId } })
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const created = await tx.changeRequest.create({
       data: {
         productId: product.id,
@@ -374,7 +374,7 @@ export async function dispositionChangeRequestAction(formData: FormData) {
     'Dispositioning a change request',
   )
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.changeRequest.update({
       where: { id: cr.id },
       data: {
@@ -457,7 +457,7 @@ export async function measureValueAction(_prev: Result | undefined, formData: Fo
   })
   if (!measurement) return { error: 'No value hypothesis exists for this product.' }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.valueMeasurement.update({
       where: { id: measurement.id },
       data: {
@@ -530,7 +530,7 @@ export async function importAttributeWorkbookAction(
     // Reviewer comments become real, anchored review comments rather than staying in the file.
     const anchored = parsed.reviews.filter((review) => review.comment)
     if (anchored.length > 0) {
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         for (const review of anchored) {
           const index = parsed.register.attributes.findIndex(
             (attribute) => attribute.name === review.attributeName,
@@ -698,7 +698,7 @@ export async function importExternalMetadataAction(
     return { ok: `No change — that export is identical to the one imported on ${duplicate.createdAt.toLocaleDateString('en-GB')}.` }
   }
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const created = await tx.externalMetadataImport.create({
       data: {
         workspaceId: product.workspaceId,

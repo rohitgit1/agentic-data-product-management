@@ -69,7 +69,7 @@ export async function commitArtifact(input: CommitInput): Promise<CommitResult> 
   })
   const mirrorPath = mirrorPathFor(product.key, type.key)
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const artifact =
       (await tx.artifact.findUnique({
         where: { productId_type: { productId: product.id, type: type.key } },

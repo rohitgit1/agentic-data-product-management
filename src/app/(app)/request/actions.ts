@@ -59,7 +59,7 @@ export async function submitRequest(
   const count = await prisma.productRequest.count({ where: { workspaceId: session.workspaceId } })
   const now = new Date()
 
-  const created = await prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx: any) => {
     const request = await tx.productRequest.create({
       data: {
         workspaceId: session.workspaceId,
@@ -129,7 +129,7 @@ export async function replyToRequest(
   const request = await prisma.productRequest.findUniqueOrThrow({ where: { id: parsed.data.requestId } })
   const isRequester = request.requesterId === session.userId
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.requestMessage.create({
       data: {
         requestId: request.id,
@@ -209,7 +209,7 @@ export async function triageRequest(
       .replace(/^-|-$/g, '')
       .slice(0, 48)
 
-    const product = await prisma.$transaction(async (tx) => {
+    const product = await prisma.$transaction(async (tx: any) => {
       const created = await tx.dataProduct.create({
         data: {
           workspaceId: request.workspaceId,
@@ -273,7 +273,7 @@ export async function triageRequest(
           ? 'MERGED'
           : 'DEFERRED'
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.productRequest.update({
       where: { id: request.id },
       data: {

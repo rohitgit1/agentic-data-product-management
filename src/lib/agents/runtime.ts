@@ -226,7 +226,7 @@ export async function invokeAgent(input: InvokeAgentInput): Promise<InvokeAgentR
     facts,
   })
 
-  const action = await prisma.$transaction(async (tx) => {
+  const action = await prisma.$transaction(async (tx: any) => {
     const created = await tx.agentAction.create({
       data: {
         workspaceId: input.workspaceId,
@@ -520,7 +520,7 @@ export async function dispositionProposal(input: DispositionInput): Promise<void
 
   const state = input.action === 'ACCEPT' ? 'ACCEPTED' : input.action === 'EDIT_ACCEPT' ? 'EDITED' : 'REJECTED'
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.agentProposal.update({
       where: { id: proposal.id },
       data: {
@@ -592,7 +592,7 @@ export async function acceptCriticComment(input: {
     'Accepting a critic comment',
   )
 
-  const comment = await prisma.$transaction(async (tx) => {
+  const comment = await prisma.$transaction(async (tx: any) => {
     const created = await tx.comment.create({
       data: {
         productId: proposal.productId,

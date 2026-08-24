@@ -1,6 +1,8 @@
 import { requireSession, landingPathFor } from '@/lib/auth/session'
 import { LinkButton } from '@/components/ui'
 
+export const dynamic = 'force-dynamic'
+
 const COMMITMENTS = [
   {
     title: 'Consumption-first, not pipeline-first',

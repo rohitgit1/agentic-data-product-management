@@ -29,7 +29,7 @@ export async function requestAccess(_prev: unknown, formData: FormData) {
     select: { id: true, key: true, workspaceId: true },
   })
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const created = await tx.accessRequest.create({
       data: {
         productId: product.id,
@@ -74,7 +74,7 @@ export async function submitFeedback(_prev: unknown, formData: FormData) {
     select: { id: true, key: true, workspaceId: true },
   })
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     const created = await tx.feedback.create({
       data: {
         productId: product.id,
@@ -124,7 +124,7 @@ export async function decideAccessRequest(formData: FormData) {
     'Deciding an access request',
   )
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: any) => {
     await tx.accessRequest.update({
       where: { id: request.id },
       data: {

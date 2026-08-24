@@ -4,10 +4,12 @@ import { BrandMark, BrandWordmark } from '@/components/brand'
 import { Button, Card, CardBody, CardHeader, ErrorText, Field, inputClass } from '@/components/ui'
 import { authenticate } from './actions'
 
+export const dynamic = 'force-dynamic'
+
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ error?: string }> | { error?: string }
+  searchParams: Promise<{ error?: string }>
 }) {
   let error: string | undefined = undefined
   try {
