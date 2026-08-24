@@ -171,9 +171,17 @@ export async function commitArtifact(input: CommitInput): Promise<CommitResult> 
 }
 
 async function mirrorToWorkspace(relativePath: string, body: string): Promise<void> {
-  const absolute = join(process.cwd(), relativePath)
-  await mkdir(dirname(absolute), { recursive: true })
-  await writeFile(absolute, body, 'utf8')
+  if (process.env.ADPM_WORKSPACE_DIR === 'off') return
+  try {
+    const baseDir = process.env.ADPM_WORKSPACE_DIR && process.env.ADPM_WORKSPACE_DIR !== 'off'
+      ? process.env.ADPM_WORKSPACE_DIR
+      : process.cwd()
+    const absolute = join(baseDir, relativePath)
+    await mkdir(dirname(absolute), { recursive: true })
+    await writeFile(absolute, body, 'utf8')
+  } catch {
+    // Non-fatal on serverless / read-only filesystems
+  }
 }
 
 /** Latest committed content for one artifact type, or undefined. */

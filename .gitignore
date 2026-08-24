@@ -19,3 +19,5 @@ workspace/**/*
 tmp/
 .DS_Store
 .adpm-secrets.json
+.vercel
+.env*
