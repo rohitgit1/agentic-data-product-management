@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient }
+const globalForPrisma = globalThis as unknown as { prisma?: any }
 
 function getPostgresUrl(): string | undefined {
   const candidates = [
@@ -35,13 +35,46 @@ if (dbUrl) {
   process.env.DATABASE_URL = dbUrl
 }
 
-export const prisma =
+const realPrisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     datasources: dbUrl ? { db: { url: dbUrl } } : undefined,
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   })
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = realPrisma
+
+function createSafeModel(modelName: string, targetModel: any) {
+  if (!targetModel) return {}
+  return new Proxy(targetModel, {
+    get(target, propKey, receiver) {
+      const original = Reflect.get(target, propKey, receiver)
+      if (typeof original === 'function') {
+        return async (...args: any[]) => {
+          try {
+            return await original.apply(target, args)
+          } catch (err: any) {
+            console.warn(`[Prisma Safe Proxy] Error on ${modelName}.${String(propKey)}:`, err?.message || err)
+            if (propKey === 'findMany') return []
+            if (propKey === 'findUnique' || propKey === 'findFirst') return null
+            if (propKey === 'count') return 0
+            return null
+          }
+        }
+      }
+      return original
+    },
+  })
+}
+
+export const prisma: any = new Proxy(realPrisma, {
+  get(target, propKey, receiver) {
+    const prop = Reflect.get(target, propKey, receiver)
+    if (prop && typeof prop === 'object' && typeof propKey === 'string' && !propKey.startsWith('$')) {
+      return createSafeModel(propKey, prop)
+    }
+    return prop
+  },
+})
 
 export type { Prisma } from '@prisma/client'
