@@ -94,6 +94,7 @@ export async function loadStageView(productId: string, stageNumber: number): Pro
     include: { owner: true, domain: true },
   })
   if (!product) return undefined
+  const stage = getStage(stageNumber)
 
   let run = await prisma.stageRun.findFirst({
     where: { productId, stageNumber },
