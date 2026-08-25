@@ -133,11 +133,11 @@ export async function loadStageView(productId: string, stageNumber: number): Pro
       committedAt: latest?.createdAt,
       yaml: yamlStringify(content, { lineWidth: 100 }),
       provenance:
-        latest?.provenance.map((p) => ({
+        (latest?.provenance ?? []).map((p) => ({
           fieldPath: p.fieldPath,
           provenance: p.provenance,
           agentId: p.agentId,
-        })) ?? [],
+        })),
       diff:
         changes && latest && previous
           ? {
@@ -201,14 +201,14 @@ export async function loadStageView(productId: string, stageNumber: number): Pro
           id: gateRow.id,
           state: gateRow.state,
           quorum: gateRow.quorum,
-          requiredRoles: gateRow.requiredRoles.split(',').filter(Boolean),
-          vetoRoles: gateRow.vetoRoles.split(',').filter(Boolean),
+          requiredRoles: (gateRow.requiredRoles || '').split(',').filter(Boolean),
+          vetoRoles: (gateRow.vetoRoles || '').split(',').filter(Boolean),
           staleReason: gateRow.staleReason,
-          approvals: gateRow.approvals.map((a) => ({
+          approvals: (gateRow.approvals || []).map((a) => ({
             roleKey: a.roleKey,
             decision: a.decision,
             rationale: a.rationale,
-            userName: a.user.name,
+            userName: a.user?.name ?? 'System',
             createdAt: a.createdAt,
           })),
         }
