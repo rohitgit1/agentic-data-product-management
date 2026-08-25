@@ -47,11 +47,7 @@ if (pgUrl) {
   console.log('[prepare-postgres] Set DATABASE_URL in process.env and written to .env')
 }
 
-const isCloudOrPostgres =
-  Boolean(process.env.VERCEL) ||
-  Boolean(process.env.NETLIFY) ||
-  Boolean(process.env.CI) ||
-  Boolean(pgUrl)
+const isCloudOrPostgres = Boolean(pgUrl)
 
 if (isCloudOrPostgres) {
   const SOURCE = resolve(process.cwd(), 'prisma/schema.prisma')

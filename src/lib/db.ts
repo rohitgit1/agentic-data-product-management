@@ -3,7 +3,9 @@ import { PrismaClient } from '@prisma/client'
 
 const globalForPrisma = globalThis as unknown as { prisma?: any }
 
-function getPostgresUrl(): string | undefined {
+import path from 'node:path'
+
+function getDbUrl(): string {
   const candidates = [
     process.env.POSTGRES_PRISMA_URL,
     process.env.POSTGRES_URL,
@@ -26,19 +28,21 @@ function getPostgresUrl(): string | undefined {
     return `postgres://${user}:${pass}@${host}/${db}?sslmode=require`
   }
 
-  return process.env.DATABASE_URL
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('file:')) {
+    return process.env.DATABASE_URL
+  }
+
+  const dbPath = path.resolve(process.cwd(), 'prisma/dev.db').replace(/\\/g, '/')
+  return `file:${dbPath}`
 }
 
-const dbUrl = getPostgresUrl()
-
-if (dbUrl) {
-  process.env.DATABASE_URL = dbUrl
-}
+const dbUrl = getDbUrl()
+process.env.DATABASE_URL = dbUrl
 
 const realPrisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    datasources: dbUrl ? { db: { url: dbUrl } } : undefined,
+    datasources: { db: { url: dbUrl } },
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   })
 
