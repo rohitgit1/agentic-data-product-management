@@ -79,14 +79,31 @@ function matchWhere(item: any, where: any): boolean {
   return true
 }
 
+function parseDates(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj
+  if (Array.isArray(obj)) return obj.map(parseDates)
+  const copy = { ...obj }
+  for (const [key, val] of Object.entries(copy)) {
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
+      copy[key] = new Date(val)
+    } else if (val && typeof val === 'object' && !(val instanceof Date)) {
+      copy[key] = parseDates(val)
+    }
+  }
+  return copy
+}
+
 function resolveRelations(item: any, query?: any): any {
   if (!item || typeof item !== 'object') return item
-  const copy = { ...item }
+  const copy = parseDates(item)
   const include = query?.include
   if (include) {
     if (include.product) {
       const prod = (FALLBACK_STORE.dataProduct || []).find((p: any) => p.id === copy.productId)
       copy.product = prod ? resolveRelations(prod, typeof include.product === 'object' ? include.product : undefined) : null
+    }
+    if (include.workspace) {
+      copy.workspace = (FALLBACK_STORE.workspace || []).find((w: any) => w.id === copy.workspaceId) || null
     }
     if (include.owner) {
       copy.owner = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.ownerId) || null
@@ -95,7 +112,7 @@ function resolveRelations(item: any, query?: any): any {
       copy.domain = (FALLBACK_STORE.domain || []).find((d: any) => d.id === copy.domainId) || null
     }
     if (include.approvals) {
-      copy.approvals = (FALLBACK_STORE.approval || []).filter((a: any) => a.gateId === copy.id)
+      copy.approvals = (FALLBACK_STORE.approval || []).filter((a: any) => a.gateId === copy.id).map(parseDates)
     }
     if (include.author) {
       copy.author = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.authorId) || null
@@ -104,7 +121,24 @@ function resolveRelations(item: any, query?: any): any {
       copy.agentAction = (FALLBACK_STORE.agentAction || []).find((a: any) => a.id === copy.agentActionId) || null
     }
     if (include.gates) {
-      copy.gates = (FALLBACK_STORE.gate || []).filter((g: any) => g.productId === copy.id)
+      copy.gates = (FALLBACK_STORE.gate || []).filter((g: any) => g.productId === copy.id).map(parseDates)
+    }
+    if (include.artifacts) {
+      let arts = (FALLBACK_STORE.artifact || []).filter((a: any) => a.productId === copy.id)
+      if (typeof include.artifacts === 'object' && include.artifacts.where) {
+        arts = arts.filter((a: any) => matchWhere(a, include.artifacts.where))
+      }
+      copy.artifacts = arts.map((a: any) => resolveRelations(a, typeof include.artifacts === 'object' ? include.artifacts : undefined))
+    }
+    if (include.versions) {
+      let vers = (FALLBACK_STORE.artifactVersion || []).filter((v: any) => v.artifactId === copy.id)
+      if (typeof include.versions === 'object' && include.versions.orderBy) {
+        vers = [...vers].sort((a: any, b: any) => b.version - a.version)
+      }
+      if (typeof include.versions === 'object' && include.versions.take) {
+        vers = vers.slice(0, include.versions.take)
+      }
+      copy.versions = vers.map(parseDates)
     }
   }
   return copy
@@ -131,6 +165,9 @@ function createSafeModel(modelName: string, targetModel: any) {
   const fallbackList = (FALLBACK_STORE as Record<string, any[]>)[modelName] || []
   return new Proxy(targetModel, {
     get(target, propKey, receiver) {
+      if (propKey === 'groupBy') {
+        return async () => []
+      }
       const original = Reflect.get(target, propKey, receiver)
       if (typeof original === 'function') {
         return async (...args: any[]) => {
@@ -147,6 +184,7 @@ function createSafeModel(modelName: string, targetModel: any) {
             if (propKey === 'findMany') return filterFallback(modelName, fallbackList, args[0])
             if (propKey === 'findUnique' || propKey === 'findFirst') return findFirstFallback(modelName, fallbackList, args[0])
             if (propKey === 'count') return fallbackList.length
+            if (propKey === 'groupBy') return []
             return null
           }
         }
