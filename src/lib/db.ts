@@ -97,19 +97,22 @@ function resolveRelations(item: any, query?: any): any {
   if (!item || typeof item !== 'object') return item
   const copy = parseDates(item)
   const include = query?.include
+  const defaultUser = (FALLBACK_STORE.user || [])[0] || { id: 'u1', name: 'Marcus Bell', email: 'marcus@utility.co' }
+  const defaultDomain = (FALLBACK_STORE.domain || [])[0] || { id: 'd1', name: 'Operations' }
+
   if (include) {
     if (include.product) {
       const prod = (FALLBACK_STORE.dataProduct || []).find((p: any) => p.id === copy.productId)
       copy.product = prod ? resolveRelations(prod, typeof include.product === 'object' ? include.product : undefined) : null
     }
     if (include.workspace) {
-      copy.workspace = (FALLBACK_STORE.workspace || []).find((w: any) => w.id === copy.workspaceId) || null
+      copy.workspace = (FALLBACK_STORE.workspace || []).find((w: any) => w.id === copy.workspaceId) || (FALLBACK_STORE.workspace || [])[0] || null
     }
     if (include.owner) {
-      copy.owner = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.ownerId) || null
+      copy.owner = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.ownerId) || defaultUser
     }
     if (include.domain) {
-      copy.domain = (FALLBACK_STORE.domain || []).find((d: any) => d.id === copy.domainId) || null
+      copy.domain = (FALLBACK_STORE.domain || []).find((d: any) => d.id === copy.domainId) || defaultDomain
     }
     if (include.domains) {
       copy.domains = (FALLBACK_STORE.domain || []).filter((d: any) => d.workspaceId === copy.id && !d.archivedAt)
@@ -118,12 +121,33 @@ function resolveRelations(item: any, query?: any): any {
       let prods = (FALLBACK_STORE.dataProduct || []).filter((p: any) => p.workspaceId === copy.id && !p.archivedAt)
       copy.products = prods.map((p: any) => resolveRelations(p, typeof include.products === 'object' ? include.products : undefined))
     }
+    if (include.request) {
+      copy.request = (FALLBACK_STORE.productRequest || []).find((r: any) => r.id === copy.requestId) || null
+    }
+    if (include.messages) {
+      copy.messages = (FALLBACK_STORE.requestMessage || []).filter((m: any) => m.requestId === copy.id).map(parseDates)
+    }
+    if (include.stageRuns) {
+      copy.stageRuns = (FALLBACK_STORE.stageRun || []).filter((sr: any) => sr.productId === copy.id).map(parseDates)
+    }
+    if (include.valueMeasurements) {
+      copy.valueMeasurements = (FALLBACK_STORE.valueMeasurement || []).filter((vm: any) => vm.productId === copy.id).map(parseDates)
+    }
+    if (include.patternBindings) {
+      copy.patternBindings = (FALLBACK_STORE.consumptionPatternBinding || []).filter((pb: any) => pb.productId === copy.id)
+    }
+    if (include.prioritisation) {
+      copy.prioritisation = (FALLBACK_STORE.prioritisationOverride || []).filter((po: any) => po.productId === copy.id).map(parseDates)
+    }
     if (include.approvals) {
       copy.approvals = (FALLBACK_STORE.approval || []).filter((a: any) => a.gateId === copy.id).map(parseDates)
     }
-    if (include.author || include.initiatedBy) {
-      copy.author = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.authorId || u.id === copy.initiatedById) || null
-      copy.initiatedBy = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.initiatedById) || null
+    if (include.author || include.initiatedBy || include.createdBy || include.user || include.requester) {
+      copy.author = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.authorId || u.id === copy.initiatedById || u.id === copy.createdById || u.id === copy.userId) || defaultUser
+      copy.initiatedBy = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.initiatedById) || defaultUser
+      copy.createdBy = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.createdById) || defaultUser
+      copy.user = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.userId) || defaultUser
+      copy.requester = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.requesterId) || defaultUser
     }
     if (include.agentAction) {
       copy.agentAction = (FALLBACK_STORE.agentAction || []).find((a: any) => a.id === copy.agentActionId) || null
