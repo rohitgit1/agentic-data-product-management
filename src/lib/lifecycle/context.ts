@@ -117,7 +117,7 @@ export async function collectWorkspaceMetricNames(
 
   const names: { metric: string; productKey: string }[] = []
   for (const product of products) {
-    for (const artifact of product.artifacts) {
+    for (const artifact of (product.artifacts || [])) {
       const version = artifact.versions[0]
       if (!version) continue
       const parsed = semanticModelSchema.safeParse(JSON.parse(version.contentJson))

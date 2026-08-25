@@ -63,7 +63,7 @@ export async function findNearMatches(query: DuplicateQuery): Promise<NearMatch[
 
   for (const product of products) {
     const haystackParts: string[] = [product.name, product.description]
-    for (const artifact of product.artifacts) {
+    for (const artifact of (product.artifacts || [])) {
       const version = artifact.versions[0]
       if (!version) continue
       const content = JSON.parse(version.contentJson)
