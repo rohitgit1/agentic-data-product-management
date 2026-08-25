@@ -238,7 +238,7 @@ export async function loadStageView(productId: string, stageNumber: number): Pro
       const isComment = !!value && typeof value === 'object' && 'comment' in (value as object)
       return {
         id: p.id,
-        agentId: p.agentAction.agentId,
+        agentId: p.agentAction?.agentId ?? 'agent-unknown',
         fieldPath: p.fieldPath,
         rationale: p.rationale,
         state: p.state,
