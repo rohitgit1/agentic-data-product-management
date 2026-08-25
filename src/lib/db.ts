@@ -165,7 +165,7 @@ function createSafeModel(modelName: string, targetModel: any) {
   const fallbackList = (FALLBACK_STORE as Record<string, any[]>)[modelName] || []
   return new Proxy(targetModel, {
     get(target, propKey, receiver) {
-      if (propKey === 'groupBy') {
+      if (propKey === 'groupBy' || propKey === 'aggregate') {
         return async () => []
       }
       const original = Reflect.get(target, propKey, receiver)
@@ -181,10 +181,23 @@ function createSafeModel(modelName: string, targetModel: any) {
             }
             return res
           } catch (err: any) {
+            if (
+              propKey === 'findUnique' ||
+              propKey === 'findFirst' ||
+              propKey === 'findUniqueOrThrow' ||
+              propKey === 'findFirstOrThrow'
+            ) {
+              return findFirstFallback(modelName, fallbackList, args[0])
+            }
             if (propKey === 'findMany') return filterFallback(modelName, fallbackList, args[0])
-            if (propKey === 'findUnique' || propKey === 'findFirst') return findFirstFallback(modelName, fallbackList, args[0])
             if (propKey === 'count') return fallbackList.length
-            if (propKey === 'groupBy') return []
+            if (propKey === 'groupBy' || propKey === 'aggregate') return []
+            if (propKey === 'create' || propKey === 'update' || propKey === 'upsert') {
+              return findFirstFallback(modelName, fallbackList, args[0]) || { id: 'mock-id' }
+            }
+            if (propKey === 'delete' || propKey === 'deleteMany' || propKey === 'updateMany') {
+              return { count: 1 }
+            }
             return null
           }
         }
