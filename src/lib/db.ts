@@ -145,12 +145,28 @@ function resolveRelations(item: any, query?: any): any {
     if (include.approvals) {
       copy.approvals = (FALLBACK_STORE.approval || []).filter((a: any) => a.gateId === copy.id).map(parseDates)
     }
-    if (include.author || include.initiatedBy || include.createdBy || include.user || include.requester) {
+    if (include.steward) {
+      copy.steward = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.stewardId) || defaultUser
+    }
+    if (include.changeRequests) {
+      let crs = (FALLBACK_STORE.changeRequest || []).filter((cr: any) => cr.productId === copy.id)
+      copy.changeRequests = crs.map((cr: any) => resolveRelations(cr, typeof include.changeRequests === 'object' ? include.changeRequests : undefined))
+    }
+    if (include.accessRequests) {
+      let ars = (FALLBACK_STORE.accessRequest || []).filter((ar: any) => ar.productId === copy.id)
+      copy.accessRequests = ars.map((ar: any) => resolveRelations(ar, typeof include.accessRequests === 'object' ? include.accessRequests : undefined))
+    }
+    if (include.feedback) {
+      let fbs = (FALLBACK_STORE.feedback || []).filter((fb: any) => fb.productId === copy.id)
+      copy.feedback = fbs.map((fb: any) => resolveRelations(fb, typeof include.feedback === 'object' ? include.feedback : undefined))
+    }
+    if (include.author || include.initiatedBy || include.createdBy || include.user || include.requester || include.raisedBy) {
       copy.author = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.authorId || u.id === copy.initiatedById || u.id === copy.createdById || u.id === copy.userId) || defaultUser
       copy.initiatedBy = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.initiatedById) || defaultUser
       copy.createdBy = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.createdById) || defaultUser
       copy.user = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.userId) || defaultUser
       copy.requester = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.requesterId) || defaultUser
+      copy.raisedBy = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.raisedById) || defaultUser
     }
     if (include.agentAction) {
       copy.agentAction = (FALLBACK_STORE.agentAction || []).find((a: any) => a.id === copy.agentActionId) || null
