@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db'
 import { requireSession } from '@/lib/auth/session'
 import { loadStageView } from '@/lib/queries/studio'
 import { credentialStatus } from '@/lib/secrets'
-import { getGuide } from '@/lib/guides/registry'
+import { getGuide, STAGE_GUIDES } from '@/lib/guides/registry'
 import { StageNav } from '@/components/studio/stage-nav'
 import { AgentPanel, ArtifactEditor, GatePanel, ReviewThread } from '@/components/studio/panels'
 import {
@@ -47,7 +47,7 @@ export default async function StagePage({
     select: { stageNumber: true, state: true },
   })
   const gateStates = new Map(gates.map((g) => [g.stageNumber, g.state]))
-  const guide = getGuide(view.stage.guideKey)
+  const guide = getGuide(view.stage.guideKey) || STAGE_GUIDES[stageNumber - 1] || STAGE_GUIDES[0]
 
   const canApprove = session.roles.some(
     (role) => view.stage.approverRoles.includes(role) || view.stage.vetoRoles.includes(role),
