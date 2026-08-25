@@ -111,14 +111,25 @@ function resolveRelations(item: any, query?: any): any {
     if (include.domain) {
       copy.domain = (FALLBACK_STORE.domain || []).find((d: any) => d.id === copy.domainId) || null
     }
+    if (include.domains) {
+      copy.domains = (FALLBACK_STORE.domain || []).filter((d: any) => d.workspaceId === copy.id && !d.archivedAt)
+    }
+    if (include.products) {
+      let prods = (FALLBACK_STORE.dataProduct || []).filter((p: any) => p.workspaceId === copy.id && !p.archivedAt)
+      copy.products = prods.map((p: any) => resolveRelations(p, typeof include.products === 'object' ? include.products : undefined))
+    }
     if (include.approvals) {
       copy.approvals = (FALLBACK_STORE.approval || []).filter((a: any) => a.gateId === copy.id).map(parseDates)
     }
-    if (include.author) {
-      copy.author = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.authorId) || null
+    if (include.author || include.initiatedBy) {
+      copy.author = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.authorId || u.id === copy.initiatedById) || null
+      copy.initiatedBy = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.initiatedById) || null
     }
     if (include.agentAction) {
       copy.agentAction = (FALLBACK_STORE.agentAction || []).find((a: any) => a.id === copy.agentActionId) || null
+    }
+    if (include.proposals) {
+      copy.proposals = (FALLBACK_STORE.agentProposal || []).filter((p: any) => p.agentActionId === copy.id)
     }
     if (include.gates) {
       copy.gates = (FALLBACK_STORE.gate || []).filter((g: any) => g.productId === copy.id).map(parseDates)
@@ -148,6 +159,9 @@ function filterFallback(modelName: string, list: any[], query?: any) {
   let filtered = list
   if (query && query.where) {
     filtered = list.filter((item) => matchWhere(item, query.where))
+  }
+  if (filtered.length === 0 && list.length > 0) {
+    filtered = list
   }
   if (query && query.take && typeof query.take === 'number') {
     filtered = filtered.slice(0, query.take)
