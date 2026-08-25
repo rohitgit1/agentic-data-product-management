@@ -95,14 +95,23 @@ export async function loadStageView(productId: string, stageNumber: number): Pro
   })
   if (!product) return undefined
 
-  const stage = getStage(stageNumber)
-  const run = await prisma.stageRun.findFirst({
+  let run = await prisma.stageRun.findFirst({
     where: { productId, stageNumber },
     orderBy: { attempt: 'desc' },
   })
-  if (!run) return undefined
+  if (!run) {
+    run = {
+      id: `sr_auto_${productId}_${stageNumber}`,
+      productId,
+      stageNumber,
+      attempt: 1,
+      state: 'IN_PROGRESS',
+      startedAt: new Date(),
+      completedAt: null,
+    } as any
+  }
 
-  const gateRow = await prisma.gate.findUnique({
+  let gateRow = await prisma.gate.findUnique({
     where: { stageRunId: run.id },
     include: { approvals: { include: { user: true } } },
   })
