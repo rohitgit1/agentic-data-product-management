@@ -20,12 +20,12 @@ export interface SessionContext {
 }
 
 export const DEFAULT_DEMO_SESSION: SessionContext = {
-  userId: 'static-domain_product_owner',
-  userName: 'Alex Rivers',
+  userId: 'cmt7clasp0001fj685mxlm4wc',
+  userName: 'Marcus Bell',
   userEmail: 'owner@adpm.local',
   userTitle: 'Domain Product Owner',
-  workspaceId: 'ws-demo',
-  workspaceName: 'Utility & Energy',
+  workspaceId: 'cmt7cmqg410cdfj681vf3g96d',
+  workspaceName: 'Utility & Energy Workspace',
   workspaceSlug: 'utility-energy',
   packKey: 'energy-utilities-core',
   roles: ['DOMAIN_PRODUCT_OWNER'],
