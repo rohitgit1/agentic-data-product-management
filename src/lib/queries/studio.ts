@@ -292,12 +292,12 @@ export async function loadProductOverview(productId: string) {
   if (!product) return undefined
   return {
     product,
-    artifactSummary: product.artifacts.map((artifact) => ({
+    artifactSummary: (product.artifacts || []).map((artifact) => ({
       type: artifact.type,
-      title: getArtifactType(artifact.type).title,
+      title: getArtifactType(artifact.type)?.title ?? artifact.type,
       stage: artifact.stageNumber,
-      version: artifact.versions[0]?.version ?? 0,
-      committedAt: artifact.versions[0]?.createdAt,
+      version: artifact.versions?.[0]?.version ?? 0,
+      committedAt: artifact.versions?.[0]?.createdAt,
     })),
   }
 }
