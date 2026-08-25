@@ -51,7 +51,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = realPrisma
 import { FALLBACK_STORE } from './fallback-data'
 
 function matchWhere(item: any, where: any): boolean {
-  if (!where) return true
+  if (!where || !item) return true
   for (const [key, val] of Object.entries(where)) {
     if (key === 'OR' && Array.isArray(val)) {
       if (!val.some((sub) => matchWhere(item, sub))) return false
@@ -59,6 +59,11 @@ function matchWhere(item: any, where: any): boolean {
     }
     if (key === 'AND' && Array.isArray(val)) {
       if (!val.every((sub) => matchWhere(item, sub))) return false
+      continue
+    }
+    if (key === 'product' && val && typeof val === 'object') {
+      const prod = (FALLBACK_STORE.dataProduct || []).find((p: any) => p.id === item.productId)
+      if (!prod || !matchWhere(prod, val)) return false
       continue
     }
     if (val && typeof val === 'object' && !Array.isArray(val)) {
@@ -74,14 +79,51 @@ function matchWhere(item: any, where: any): boolean {
   return true
 }
 
+function resolveRelations(item: any, query?: any): any {
+  if (!item || typeof item !== 'object') return item
+  const copy = { ...item }
+  const include = query?.include
+  if (include) {
+    if (include.product) {
+      const prod = (FALLBACK_STORE.dataProduct || []).find((p: any) => p.id === copy.productId)
+      copy.product = prod ? resolveRelations(prod, typeof include.product === 'object' ? include.product : undefined) : null
+    }
+    if (include.owner) {
+      copy.owner = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.ownerId) || null
+    }
+    if (include.domain) {
+      copy.domain = (FALLBACK_STORE.domain || []).find((d: any) => d.id === copy.domainId) || null
+    }
+    if (include.approvals) {
+      copy.approvals = (FALLBACK_STORE.approval || []).filter((a: any) => a.gateId === copy.id)
+    }
+    if (include.author) {
+      copy.author = (FALLBACK_STORE.user || []).find((u: any) => u.id === copy.authorId) || null
+    }
+    if (include.agentAction) {
+      copy.agentAction = (FALLBACK_STORE.agentAction || []).find((a: any) => a.id === copy.agentActionId) || null
+    }
+    if (include.gates) {
+      copy.gates = (FALLBACK_STORE.gate || []).filter((g: any) => g.productId === copy.id)
+    }
+  }
+  return copy
+}
+
 function filterFallback(modelName: string, list: any[], query?: any) {
-  if (!query || !query.where) return list
-  return list.filter((item) => matchWhere(item, query.where))
+  let filtered = list
+  if (query && query.where) {
+    filtered = list.filter((item) => matchWhere(item, query.where))
+  }
+  if (query && query.take && typeof query.take === 'number') {
+    filtered = filtered.slice(0, query.take)
+  }
+  return filtered.map((item) => resolveRelations(item, query))
 }
 
 function findFirstFallback(modelName: string, list: any[], query?: any) {
   const filtered = filterFallback(modelName, list, query)
-  return filtered[0] || list[0] || null
+  return filtered[0] || (list[0] ? resolveRelations(list[0], query) : null)
 }
 
 function createSafeModel(modelName: string, targetModel: any) {
