@@ -176,7 +176,10 @@ function resolveRelations(item: any, query?: any): any {
       if (typeof include.versions === 'object' && include.versions.take) {
         vers = vers.slice(0, include.versions.take)
       }
-      copy.versions = vers.map(parseDates)
+      copy.versions = vers.map((v: any) => resolveRelations(v, typeof include.versions === 'object' ? include.versions : undefined))
+    }
+    if (include.provenance) {
+      copy.provenance = (FALLBACK_STORE.fieldProvenance || []).filter((fp: any) => fp.versionId === copy.id)
     }
   }
   return copy

@@ -43,7 +43,7 @@ export async function buildStageContext(
       content: JSON.parse(version.contentJson) as unknown,
       contentHash: version.contentHash,
       committedAt: version.createdAt,
-      hasUnreviewedAgentFields: version.provenance.some((p) => p.provenance === 'AGENT_PROPOSED'),
+      hasUnreviewedAgentFields: (version.provenance || []).some((p) => p.provenance === 'AGENT_PROPOSED'),
     }
     evidenceRefs.push(`artifact:${artifact.type}@v${version.version}`)
   }
