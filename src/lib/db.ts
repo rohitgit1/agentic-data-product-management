@@ -71,6 +71,9 @@ function matchWhere(item: any, where: any): boolean {
         if (!(val as any).in.includes(item[key])) return false
       } else if ('not' in val) {
         if (item[key] === (val as any).not) return false
+      } else if (!('equals' in val) && !('contains' in val) && !('gte' in val) && !('lte' in val)) {
+        // Composite unique key like productId_type: { productId: '...', type: '...' }
+        if (!matchWhere(item, val)) return false
       }
     } else if (val !== undefined && item[key] !== val) {
       return false

@@ -1,10 +1,45 @@
+'use client'
+
 import { ROLES } from '@/lib/domain/roles'
 import { BrandMark, BrandWordmark } from '@/components/brand'
 import { Button, Card, CardBody, CardHeader, Field, inputClass } from '@/components/ui'
 
-export const dynamic = 'force-dynamic'
-
 export default function SignInPage() {
+  const handleRoleClick = (email: string) => {
+    if (typeof document === 'undefined') return
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = '/api/auth/callback/credentials'
+
+    const emailInput = document.createElement('input')
+    emailInput.type = 'hidden'
+    emailInput.name = 'email'
+    emailInput.value = email
+    form.appendChild(emailInput)
+
+    const passInput = document.createElement('input')
+    passInput.type = 'hidden'
+    passInput.name = 'password'
+    passInput.value = 'adpm-demo'
+    form.appendChild(passInput)
+
+    const redirectInput = document.createElement('input')
+    redirectInput.type = 'hidden'
+    redirectInput.name = 'redirectTo'
+    redirectInput.value = '/inbox'
+    form.appendChild(redirectInput)
+
+    document.body.appendChild(form)
+    form.submit()
+  }
+
+  const handleCustomSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const target = e.currentTarget
+    const email = (target.elements.namedItem('email') as HTMLInputElement).value
+    handleRoleClick(email)
+  }
+
   return (
     <div className="flex min-h-screen flex-col justify-center bg-ink-50 py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -26,18 +61,19 @@ export default function SignInPage() {
               Click any role to enter instantly.
             </p>
             {ROLES.map((r) => (
-              <form key={r.seedEmail} method="POST" action="/api/auth/callback/credentials" className="block">
-                <input type="hidden" name="email" value={r.seedEmail} />
-                <input type="hidden" name="password" value="adpm-demo" />
-                <input type="hidden" name="redirectTo" value="/inbox" />
-                <Button type="submit" variant="secondary" className="w-full justify-between text-left">
-                  <span>
-                    <span className="font-semibold text-ink-900">{r.seedName}</span>
-                    <span className="ml-2 text-xs text-ink-500">({r.name})</span>
-                  </span>
-                  <span className="text-xs font-semibold text-accent-600">Enter &rarr;</span>
-                </Button>
-              </form>
+              <Button
+                key={r.seedEmail}
+                type="button"
+                variant="secondary"
+                className="w-full justify-between text-left"
+                onClick={() => handleRoleClick(r.seedEmail)}
+              >
+                <span>
+                  <span className="font-semibold text-ink-900">{r.seedName}</span>
+                  <span className="ml-2 text-xs text-ink-500">({r.name})</span>
+                </span>
+                <span className="text-xs font-semibold text-accent-600">Enter &rarr;</span>
+              </Button>
             ))}
           </CardBody>
         </Card>
@@ -45,8 +81,7 @@ export default function SignInPage() {
         <Card className="mt-4">
           <CardHeader title="Custom credentials" />
           <CardBody>
-            <form method="POST" action="/api/auth/callback/credentials" className="space-y-4">
-              <input type="hidden" name="redirectTo" value="/inbox" />
+            <form onSubmit={handleCustomSubmit} className="space-y-4">
               <Field label="Email address" htmlFor="email">
                 <input
                   id="email"
@@ -54,7 +89,7 @@ export default function SignInPage() {
                   type="email"
                   required
                   defaultValue="owner@adpm.local"
-                  className={inputClass()}
+                  className={inputClass}
                 />
               </Field>
 
@@ -65,7 +100,7 @@ export default function SignInPage() {
                   type="password"
                   required
                   defaultValue="adpm-demo"
-                  className={inputClass()}
+                  className={inputClass}
                 />
               </Field>
 
